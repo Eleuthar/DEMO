@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+
+{% block content %}
+
+<h3> Enter details of an existing car </h3>
+<form action="/update_car_form" method="post">
+
+    <label for="id">Id (ranged 1 - {{rowz}}: </label>
+    <input type="number" name="id" required min="1" max = "{{ rowz }}" ><br/>
+
+    <label for="brand">Brand: </label>
+    <input type="text" name="brand" required><br/>
+
+    <label for="model">Model: </label>
+    <input type="text" name="model" required><br/>
+
+    <label for="year">Production year: </label>
+    <input type="text" name="year" required><br/>
+
+    <label for="convertible">Convertible:</label>
+    <input type="text" name="convertible" required placeholder="True or False"><br/><br/>
+
+    <input type="submit" value="Update">
+</form>
+{% endblock %} 
+
