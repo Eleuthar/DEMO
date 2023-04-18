@@ -66,46 +66,63 @@ def new_log_file( log_path, ymd_now ):
     return log_file
 
 
-def get_file_hex( rootdir, filename, blocksize=2**20 ):    
+def generate_file_hex( rootdir, filename, blocksize=8192 ):
+    hh = md5()
     with open( os.path.join( rootdir, filename ) , "rb" ) as f:
-        while True:
-            buff = f.read( blocksize )
-            if not buff:
-                break
-            md5.update( buff )
-    return md5.hexdigest()
+        while buff := f.read( blocksize )
+            hh.update( buff )
+    return hh.hexdigest()
 
 
-def get_client_hexmap( client ):
-    
-    for directory in os.walk( client ):
-    # ( current_dir, [folders], [files] )
+def generate_hexmap( target, hexmap ):    
+     
+    for directory in os.walk( target ):
+    # ( 0=dirname, 1=[folders], 2=[files] )
+        
         for dir_item in directory:
-        # map hash to digest
+        # map path to digest
         
-        
-    hex_digest = md5( file.read() ).hexdigest()
+            rootdir = dir_item[0]
+            files = dir_item[2]
+            for fname in files:
+                hexmap[ rootdir ][ fname ] = generate_file_hex( rootdir, fname )
     
+    return hexmap
+  
+  
+def one_way_sync( logger ):
     
-    sync_finish = datetime.now()
-    log_item = f"Finished sync at {datetime.now().strftime( '%y-%m-%d %H:%M' )}\n"
-    print( log_item )
-    logg.write( log_item )
-    
-    return ( sync_finish - sync_start ).seconds
-
-
-def one_way_sync( logg ):
     # used after initial sync
-    global client, cloud, log_path, interval
+    global client, cloud, client_hexmap, cloud_hexmap
     
     sync_start = datetime.now()
     log_item = f"Starting sync at {datetime.now().strftime( '%y-%m-%d %H:%M' )}\n"
     print( log_item )
-    logg.write( log_item )
+    logger.write( log_item )
+    
+    # get the source directory hash map
+    client_hexmap = generate_hexmap( client )
+    
+    # compare with cloud storage
+    if len(cloud_hexmap) == 0:
+        # initialization if cloud storage is empty
+        cloud_hexmap = client_hexmap
+    
+        # TODO COPY ALL 
+    
+    else:
+        # TODO COPY IF hex not equal
+        
+    
+    sync_finish = datetime.now()
+    log_item = f"Finished sync at {datetime.now().strftime( '%y-%m-%d %H:%M' )}\n"
+    print( log_item )
+    logger.write( log_item )
+    
+    return ( sync_finish - sync_start ).seconds
        
     
-def main( log_path_set=False, logger=None):
+def main( log_path_set=False, logger=None ):
     
     global client, cloud, log_path, interval
     
@@ -144,15 +161,40 @@ timeframe = {
     "H" : 3600,
     "D" : 86400
 }
-
 client = argv[1]
-
 cloud = argv[2]
-
 # interval translated into seconds
 interval = ( argv[3] * timeframe[argv[4].upper()] )
-
 log_path = argv[5]
+client_hexmap = {}
+cloud_hexmap = {}
 
-client_hex_map = {}
-cloud_hex_map = {}
+
+'''
+>>> for qz in os.walk('.'):
+...     print(qz[0], '<<<<<<<< qz[0]')
+...     print(qz[1], '<<<<<<<< qz[1]')
+...     print(qz[2], '<<<<<<<< qz[2]')
+...     print('-----------------------------')
+...
+. <<<<<<<< qz[0]
+['Securitate informatica', 'Securitatea sistemelor multimedia'] <<<<<<<< qz[1]
+['Protocoale de Securitate.pdf'] <<<<<<<< qz[2]
+-----------------------------
+.\Securitate informatica <<<<<<<< qz[0]
+[] <<<<<<<< qz[1]
+['1. Auth.pdf', '2. IPSec.pdf', '3. TLS.pdf', '4. AppSec.pdf', '5. Firewall.pdf'] <<<<<<<< qz[2]
+-----------------------------
+.\Securitatea sistemelor multimedia <<<<<<<< qz[0]
+['Bazele serviciilor multimedia', 'Protocoale pentru servicii multimedia'] <<<<<<<< qz[1]
+['Multimedia Security Handbook.pdf'] <<<<<<<< qz[2]
+-----------------------------
+.\Securitatea sistemelor multimedia\Bazele serviciilor multimedia <<<<<<<< qz[0]
+[] <<<<<<<< qz[1]
+['11 Transportul bazat pe IP.pptx', '12 Transmiterea media interactiva.pptx', '2 Audio digital.pptx', '4 Codarea vorbirii.pptx', '5 Codarea muzicală.pptx', '6 VIDEO Basics.pptx', 'Multimedia over IP_Ro.pptx'] <<<<<<<< qz[2]
+-----------------------------
+.\Securitatea sistemelor multimedia\Protocoale pentru servicii multimedia <<<<<<<< qz[0]
+[] <<<<<<<< qz[1]
+['13 RTP Ro.pptx', '14 PROTOCOALE DE SEMNALIZARE (H.323) Ro.pptx', 'Chap-25 (TCP-IP Suite)Multimedia  RO.ppt', 'Stream Control Transmission Protocol Ro.pdf', 'Streaming audio+video Ro.pdf', 'TCP-IP Protocol Suite_Chap-13 SCTP_RO.ppt'] <<<<<<<< qz[2]
+-----------------------------
+'''
