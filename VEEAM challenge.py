@@ -1,9 +1,7 @@
-
-
-import socket
 from hashlib import md5
 from sys import argv
 import os
+import shutil
 from datetime import datetime
 from time import sleep
 
@@ -18,112 +16,133 @@ __doc__ = '''
     D = DAYS
     
     Example for synchronizing every 5 minutes with absolute path:   
-    $ python dir_sync.py "C:\\Users\\MrRobot\\Documents\\Homework\\" "C:\\Users\\MrRobot\\Downloads\\VEEAM_CLOUD\\Homework\\" 5 minutes "C:\\Program Files\\VEEAM\\logs\\"
+    $ python dir_sync.py "C:\\Users\\MrRobot\\Documents\\Homework\\" "C:\\Users\\MrRobot\\Downloads\\VEEAM_CLOUD\\Homework\\" 5 M "C:\\Program Files\\VEEAM\\logs\\"
     
     Example for synchronizing every 5 seconds with relative path:
-    $ python ..\INFOSEC .\INFOSEC 5 SECONDS .\logz
+    $ python ..\INFOSEC .\INFOSEC 5 S .\logz
     '''
     
 
-if len(argv) != 5 or argv[3].isdigit() != True or argv[4].upper() not in ['S','M','H','D']:        
-    print(__doc__)
+if len( argv ) != 5 or argv[3].isdigit() != True or argv[4].upper() not in ['S','M','H','D']:
+    print( __doc__ )
     exit()
 
-set_trace()
-
-
-def validate_log_path(path):
+#set_trace()
+    
+def setup_log_path( path ):
     # implemented log path validation since user interpretation can be ambiguous: either provide a directory to be created or use an existing one.
-    print(f"Validating log directory: {path}\n")
+    print( f"Validating log directory: {path}\n" )
     
     if '\\' in path:
-        path.replace('\\', '/')
+        path.replace( '\\', '/' )
     
-    if os.path.exists(path) == False:            
-        split_path = path.split('/')
+    if os.path.exists( path ) == False:          
+        split_path = path.split( '/' )
         dir_name = split_path.pop()
-        upper_dir = '/'.join(split_path)
-        print(f'Directory "{dir_name}" does not exist. Will create it if the upper directory is valid.\n')
+        upper_dir = '/'.join( split_path )
+        print( f'Directory "{dir_name}" does not exist. Will create it if the upper directory is valid.\n' )
         
-        if os.path.exists(upper_dir) != True:                
-            print(f"Upper directory of {dir_name} does not exist either\n.Please use an existing directory to store the logs.")                          
+        if os.path.exists( upper_dir ) != True:                
+            print( f"Upper directory of {dir_name} does not exist either\n.Please use an existing directory to store the logs." )                          
             exit()
         
         else:
-            print(f"Creating {dir_name} under {upper_dir}\n")
-            return False
+            print( f"Creating {dir_name} under {upper_dir}\n" )
+            os.mkdir( path )
+            return True
       
     else:
+        print( f"Saving logs in {path}\n"
         return True
         
 
-def setup_log_file(log_path, ymd_now):
-    # Logs are stored under <log_path>\<currentYear>\<currentMonth>\ directory
-    year = datetime.now().year
-    month = datetime.now().month
-    day = datetime.now().day
-    
-    if validate_path(log_path) == False:
-        os.mkdir(log_path)
-    
-    year_dirname = os.path.join(log_path, year)    
-    month_dirname = os.path.join(year_dirname, month)
-    
-    # If there is no file matching the current day under current month directory, make one
-    if os.path.exists(year_dirname) == False:
-        os.mkdir(year_dirname)
-    
-    # If there is no current month directory, make one
-    if os.path.exists(month_dir) == False:
-        os.mkdir(month_dirname)
-
+def new_log_file( log_path, ymd_now ):
+  
     # File name format: dirSync_2023-04-18.txt    
-    current_day_log = f"dirSync_{ymd_now}.txt"
+    log_name = f"dirSync_{ymd_now}.txt"
+    log_path = os.path.join( log_path, current_log_name )
+    log_file = open( log_path, 'a' )
     
-    if current_day_log not in listdir(month_dirname):
-        os.path.join(month_dirname, current_day_log)
-    
-    return current_day_log  
+    return log_file
 
 
-def one_way_sync(current_day_log):
-    global client, cloud    
-    sync_start = datetime.now()
+def get_file_hex( rootdir, filename, blocksize=2**20 ):    
+    with open( os.path.join( rootdir, filename ) , "rb" ) as f:
+        while True:
+            buff = f.read( blocksize )
+            if not buff:
+                break
+            md5.update( buff )
+    return md5.hexdigest()
+
+
+def get_client_hexmap( client ):
     
-    # hash can be changed by: dir name, inner file name, inner file content, file permission? 
-    
-    hex_digest = md5(b'').hexdigest()
+    for directory in os.walk( client ):
+    # ( current_dir, [folders], [files] )
+        for dir_item in directory:
+        # map hash to digest
+        
+        
+    hex_digest = md5( file.read() ).hexdigest()
     
     
     sync_finish = datetime.now()
-    return (sync_finish - sync_start).seconds
+    log_item = f"Finished sync at {datetime.now().strftime( '%y-%m-%d %H:%M' )}\n"
+    print( log_item )
+    logg.write( log_item )
     
+    return ( sync_finish - sync_start ).seconds
+
+
+def one_way_sync( logg ):
+    # used after initial sync
+    global client, cloud, log_path, interval
     
-def main(client, cloud, interval):
+    sync_start = datetime.now()
+    log_item = f"Starting sync at {datetime.now().strftime( '%y-%m-%d %H:%M' )}\n"
+    print( log_item )
+    logg.write( log_item )
+       
+    
+def main( log_path_set=False, logger=None):
+    
+    global client, cloud, log_path, interval
+    
+    # log file timeframe
+    ymd_now = datetime.now().strftime( '%Y-%m-%d' )
     
     # setup log file
-    ymd_now = datetime.now().strftime('%Y-%m-%d')
-    current_day_log = setup_log_file(log_path, ymd_now)
+    if log_path_set != True:        
+        log_path_set = setup_log_file( log_path, ymd_now )
     
-    # sync
-    sync_duration = one_way_sync(current_day_log)
+    # Check if the current log file matches the current date
+    if logger == None:
+        logger = new_log_file( log_path, ymd_now )
+    else:
+        if ymd_now not in logger.name:
+            logger.close()
+            logger = new_log_file( log_path, ymd_now )            
+    
+    # sync folders
+    sync_duration = one_way_sync( logger )
     
     # determine last sync duration to cut from the interval sleep time until next sync
-    sync_delta = sync_duration - interval)
+    sync_delta = sync_duration - interval )
     
     if sync_delta <= 0:
-        main(client, cloud, interval)
+        main()
     else:
-        sleep(sync_delta)
-        main(client, cloud, interval)
+        sleep( sync_delta )
+        main()
+
+
     
-   
-# time expressed seconds
 timeframe = {
-    "s" : 1,
-    "m" : 60,
-    "h" : 3600,
-    "d" : 86400
+    "S" : 1,
+    "M" : 60,
+    "H" : 3600,
+    "D" : 86400
 }
 
 client = argv[1]
@@ -131,6 +150,9 @@ client = argv[1]
 cloud = argv[2]
 
 # interval translated into seconds
-interval = (argv[3] * timeframe[argv[4]])
+interval = ( argv[3] * timeframe[argv[4].upper()] )
 
 log_path = argv[5]
+
+client_hex_map = {}
+cloud_hex_map = {}
