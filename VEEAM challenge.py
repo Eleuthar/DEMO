@@ -1,7 +1,7 @@
 from hashlib import md5
 from sys import argv
-import os
-import shutil
+from os import listdir, path, mkdir, replace, remove, removedirs
+from shutil import copytree, copy2
 from datetime import datetime
 from time import sleep
 
@@ -29,73 +29,69 @@ if len( argv ) != 5 or argv[3].isdigit() != True or argv[4].upper() not in ['S',
 
 #set_trace()
     
-def setup_log_path( path ):
-    # implemented log path validation since user interpretation can be ambiguous: either provide a directory to be created or use an existing one.
-    print( f"Validating log directory: {path}\n" )
-    
-    if '\\' in path:
-        path.replace( '\\', '/' )
-    
-    if os.path.exists( path ) == False:          
+def setup_log_path( client_path ):
+# implemented log path validation since user interpretation can be ambiguous: either provide a directory to be created or use an existing one.
+    print( f"Validating log directory: {client_path}\n" )    
+    # set a unique delimiter regardless of platform (Linux\Windows)
+    if '\\' in client_path:
+        client_path.replace( '\\', '/' )
+    # folder check
+    if not path.exists( client_path ):
         split_path = path.split( '/' )
         dir_name = split_path.pop()
         upper_dir = '/'.join( split_path )
         print( f'Directory "{dir_name}" does not exist. Will create it if the upper directory is valid.\n' )
-        
-        if os.path.exists( upper_dir ) != True:                
-            print( f"Upper directory of {dir_name} does not exist either\n.Please use an existing directory to store the logs." )                          
-            exit()
-        
+        # upper folder check
+        if not path.exists( upper_dir ):                
+            print( f"Upper directory of {dir_name} does not exist either\n.Please use an existing directory to store the logs." )              
+            exit()        
         else:
             print( f"Creating {dir_name} under {upper_dir}\n" )
-            os.mkdir( path )
-            return True
-      
+            os.mkdir( client_path )
+            return True      
     else:
-        print( f"Saving logs in {path}\n"
+        print( f"Saving logs in {client_path}\n"
         return True
         
 
-def new_log_file( log_path, ymd_now ):
-  
+def new_log_file( log_path, ymd_now ):  
     # File name format: dirSync_2023-04-18.txt    
     log_name = f"dirSync_{ymd_now}.txt"
-    log_path = os.path.join( log_path, current_log_name )
-    log_file = open( log_path, 'a' )
-    
+    log_path = os.path.join( log_path, log_name )
+    log_file = open( log_path, 'a' )    
     return log_file
 
 
 def generate_file_hex( rootdir, filename, blocksize=8192 ):
     hh = md5()
     with open( os.path.join( rootdir, filename ) , "rb" ) as f:
-        while buff := f.read( blocksize )
+        while buff := f.read( blocksize ):
             hh.update( buff )
     return hh.hexdigest()
 
 
-def generate_hexmap( target, hexmap ):    
-     
-    for directory in os.walk( target ):
-    # ( 0=dirname, 1=[folders], 2=[files] )
-        
-        for dir_item in directory:
-        # map path to digest
-        
-            rootdir = dir_item[0]
-            files = dir_item[2]
-            for fname in files:
-                hexmap[ rootdir ][ fname ] = generate_file_hex( rootdir, fname )
-    
+def generate_hexmap( client ):
+    hexmap = {
+        'root': [],
+        'fname': [], 
+        'hex': []    
+    }    
+    for directory in os.walk( client ):
+    # ( 0=dirname, 1=[folders], 2=[files] )        
+        root = directory[0]        
+        for fname in directory[2]:
+            hexmap['root'].append( root )
+            hexmap['fname'].append( fname )
+            hexmap['hex'].append( generate_file_hex( root, fname ) )
     return hexmap
-  
+
   
 def one_way_sync( logger ):
-    
-    # used after initial sync
-    global client, cloud, client_hexmap, cloud_hexmap
+
+    global client, cloud, client_hexmap, cloud_hexmap    
     
     sync_start = datetime.now()
+    
     log_item = f"Starting sync at {datetime.now().strftime( '%y-%m-%d %H:%M' )}\n"
     print( log_item )
     logger.write( log_item )
@@ -103,18 +99,35 @@ def one_way_sync( logger ):
     # get the source directory hash map
     client_hexmap = generate_hexmap( client )
     
-    # compare with cloud storage
-    if len(cloud_hexmap) == 0:
-        # initialization if cloud storage is empty
+    # initialization of cloud storage
+    if listdir(cloud) == 0:
         cloud_hexmap = client_hexmap
-    
-        # TODO COPY ALL 
-    
-    else:
-        # TODO COPY IF hex not equal
         
+        for item in listdir(client):
+            copytree(item, path.join( cloud, item ) if path.isdir( item ) else copy2(item, path.join( cloud, item )
     
+    # compare with cloud storage hexmap: root fname hex
+    else:        
+        for j in range( len( cloud_hexmap['hex'] ) ):
+              
+            # delete file with not matching hex & file not in source
+            if (cloud_hexmap['hex'][j] not in client_hexmap['hex'] and 
+                cloud_hexmap['fname'][j] not in client_hexmap['fname']and 
+                path.exists( path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] ) ) ):
+                
+                remove( path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] ) )
+                    
+            # replace file if hex not matching
+            elif cloud_hexmap['hex'][j] not in client_hexmap['hex'] and cloud_hexmap['fname'][j] in client_hexmap['fname'] and path.exists( path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] ) ):
+            
+                remove( path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] ) )
+                src = path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] )
+                dst = path.join( client_hexmap['root'][j], client_hexmap['fname'][j] )
+                copy2(src, dst)
+                
+                    
     sync_finish = datetime.now()
+    
     log_item = f"Finished sync at {datetime.now().strftime( '%y-%m-%d %H:%M' )}\n"
     print( log_item )
     logger.write( log_item )
@@ -122,16 +135,16 @@ def one_way_sync( logger ):
     return ( sync_finish - sync_start ).seconds
        
     
-def main( log_path_set=False, logger=None ):
+def main( log_path_set=False, logger=None ):    
     
-    global client, cloud, log_path, interval
+    global client, cloud, log_path, interval    
     
     # log file timeframe
-    ymd_now = datetime.now().strftime( '%Y-%m-%d' )
+    ymd_now = datetime.now().strftime( '%Y-%m-%d' )    
     
     # setup log file
-    if log_path_set != True:        
-        log_path_set = setup_log_file( log_path, ymd_now )
+    if not log_path_set:       
+        log_path_set = setup_log_file( log_path, ymd_now )    
     
     # Check if the current log file matches the current date
     if logger == None:
@@ -139,22 +152,26 @@ def main( log_path_set=False, logger=None ):
     else:
         if ymd_now not in logger.name:
             logger.close()
-            logger = new_log_file( log_path, ymd_now )            
+            logger = new_log_file( log_path, ymd_now )
     
     # sync folders
-    sync_duration = one_way_sync( logger )
+    sync_duration = one_way_sync( logger )    
     
     # determine last sync duration to cut from the interval sleep time until next sync
     sync_delta = sync_duration - interval )
     
+    log_item = f"Last sync took {sync_duration}\n")
+    print(log_item)
+    logger.write(log_item)
+    
     if sync_delta <= 0:
-        main()
+        main(log_path_set, logger)
     else:
         sleep( sync_delta )
-        main()
+        main(log_path_set, logger)
 
 
-    
+# global variables    
 timeframe = {
     "S" : 1,
     "M" : 60,
@@ -170,31 +187,5 @@ client_hexmap = {}
 cloud_hexmap = {}
 
 
-'''
->>> for qz in os.walk('.'):
-...     print(qz[0], '<<<<<<<< qz[0]')
-...     print(qz[1], '<<<<<<<< qz[1]')
-...     print(qz[2], '<<<<<<<< qz[2]')
-...     print('-----------------------------')
-...
-. <<<<<<<< qz[0]
-['Securitate informatica', 'Securitatea sistemelor multimedia'] <<<<<<<< qz[1]
-['Protocoale de Securitate.pdf'] <<<<<<<< qz[2]
------------------------------
-.\Securitate informatica <<<<<<<< qz[0]
-[] <<<<<<<< qz[1]
-['1. Auth.pdf', '2. IPSec.pdf', '3. TLS.pdf', '4. AppSec.pdf', '5. Firewall.pdf'] <<<<<<<< qz[2]
------------------------------
-.\Securitatea sistemelor multimedia <<<<<<<< qz[0]
-['Bazele serviciilor multimedia', 'Protocoale pentru servicii multimedia'] <<<<<<<< qz[1]
-['Multimedia Security Handbook.pdf'] <<<<<<<< qz[2]
------------------------------
-.\Securitatea sistemelor multimedia\Bazele serviciilor multimedia <<<<<<<< qz[0]
-[] <<<<<<<< qz[1]
-['11 Transportul bazat pe IP.pptx', '12 Transmiterea media interactiva.pptx', '2 Audio digital.pptx', '4 Codarea vorbirii.pptx', '5 Codarea muzicală.pptx', '6 VIDEO Basics.pptx', 'Multimedia over IP_Ro.pptx'] <<<<<<<< qz[2]
------------------------------
-.\Securitatea sistemelor multimedia\Protocoale pentru servicii multimedia <<<<<<<< qz[0]
-[] <<<<<<<< qz[1]
-['13 RTP Ro.pptx', '14 PROTOCOALE DE SEMNALIZARE (H.323) Ro.pptx', 'Chap-25 (TCP-IP Suite)Multimedia  RO.ppt', 'Stream Control Transmission Protocol Ro.pdf', 'Streaming audio+video Ro.pdf', 'TCP-IP Protocol Suite_Chap-13 SCTP_RO.ppt'] <<<<<<<< qz[2]
------------------------------
-'''
+if __name__ == '__main__':
+    main()
