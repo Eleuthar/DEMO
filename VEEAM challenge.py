@@ -85,7 +85,27 @@ def generate_hexmap( client ):
             hexmap['hex'].append( generate_file_hex( root, fname ) )
     return hexmap
 
-  
+
+def dump_to_cloud( client, cloud, logger ):
+
+    log_item = f"Performing full sync\n"
+    print( log_item )
+    logger.write( log_item )
+        
+    for item in listdir(client):
+        try:
+            copytree(item, path.join( cloud, item ) if path.isdir( item ) else copy2( item, path.join( cloud, item ) )
+            log_item = f"Copied {item}\n"
+            print( log_item )
+            logger.write( log_item )
+            
+        except Exception as X:
+            log_item = f"Error: {X}\n"
+            print( log_item )
+            logger.write( log_item )            
+    return
+
+
 def one_way_sync( logger ):
 
     global client, cloud, client_hexmap, cloud_hexmap    
@@ -99,15 +119,13 @@ def one_way_sync( logger ):
     # get the source directory hash map
     client_hexmap = generate_hexmap( client )
     
-    # initialization of cloud storage
-    if listdir(cloud) == 0:
+    # full dump to cloud storage
+    if listdir(cloud) == 0:    
         cloud_hexmap = client_hexmap
-        
-        for item in listdir(client):
-            copytree(item, path.join( cloud, item ) if path.isdir( item ) else copy2(item, path.join( cloud, item )
-    
+        dump_to_cloud( client, cloud, logger )
+            
     # compare with cloud storage hexmap: root fname hex
-    else:        
+    else:
         for j in range( len( cloud_hexmap['hex'] ) ):
               
             # delete file with not matching hex & file not in source
@@ -115,15 +133,47 @@ def one_way_sync( logger ):
                 cloud_hexmap['fname'][j] not in client_hexmap['fname']and 
                 path.exists( path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] ) ) ):
                 
-                remove( path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] ) )
-                    
+                try:
+                    f = path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] )
+                    remove( f )
+                    log_item( f"Removed {f}\n" )
+                    logger.write( log_item )
+                    print( log_item )
+                
+                except Exception as X:
+                    log_item( f"Error: {X}\n" )
+                    logger.write( log_item )
+                    print( log_item )
+                
+                                      
             # replace file if hex not matching
             elif cloud_hexmap['hex'][j] not in client_hexmap['hex'] and cloud_hexmap['fname'][j] in client_hexmap['fname'] and path.exists( path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] ) ):
             
-                remove( path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] ) )
-                src = path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] )
-                dst = path.join( client_hexmap['root'][j], client_hexmap['fname'][j] )
-                copy2(src, dst)
+                                                        
+                
+                try:
+                    f = path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] )
+                    remove( f )
+                    
+                    log_item( f"Removed {f}\n" )
+                    logger.write( log_item )
+                    print( log_item )
+                    
+                    src = path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] )
+                    dst = path.join( client_hexmap['root'][j], client_hexmap['fname'][j] )
+                    copy2(src, dst)
+                    
+                    log_item( f"Copied {src} to {dst}\n" )
+                    logger.write( log_item )
+                    print( log_item )
+                
+                except Exception as X:
+                    log_item( f"Error: {X}\n" )
+                    logger.write( log_item )
+                    print( log_item )
+                
+            # move file if not matching path
+            elif 
                 
                     
     sync_finish = datetime.now()
