@@ -111,24 +111,18 @@ def generate_hexmap( target, logger):
     return hexmap
 
 
-def build_cloud_path(new_root, new_fname):
-    global client, cloud
-    client_sep = '\\' if '\\' in new_root else "/"
-    cloud_sep = '\\' if '\\' in cloud else "/"
-
-    # remove the client part from root and replace it with cloud rootdir to mirror the actual path
-    split_new_root = new_root.split( client_sep )
-    split_client = client.split( client_sep ) 
-    split_cloud = cloud.split( cloud_sep )
-
-    for z in range( len( split_client ) ):
-        if split_client[z] == split_new_root[z]:
-            del split_client[z], split_new_root[z]
-        else:
-            break
+def refresh_path(dst, client_hexmap, prop):
     
-    new_path = cloud_sep.join(split_cloud + split_new_root)
-    return new_path
+    global client
+    
+    for z in range( len( client_hexmap[prop] ) ):
+        
+        if dst == client_hexmap[prop][z]:                    
+            
+            new_fname = client_hexmap['fname'][z]            
+            new_root = client_hexmap['root'][z][ len( client ) : ]
+            
+            return path.join( new_root, new_fname)
 
 
 def diff_hex( logger ):
@@ -139,17 +133,17 @@ def diff_hex( logger ):
        
         src_root = client_hexmap['root'][j]
         src_fn = client_hexmap['fname'][j]
-        src_h = client_hexmap['hex'][j]
+        src_hex = client_hexmap['hex'][j]
         src_f = path.join( src_root, src_fn )
         
         dst_root = cloud_hexmap['root'][j]
         dst_fn = cloud_hexmap['fname'][j] 
-        dst_h = cloud_hexmap['hex'][j]                
+        dst_hex = cloud_hexmap['hex'][j]                
         dst_f = path.join( dst_root, dst_fn )        
         
         set_trace()
         # delete file with no matching hex & filename
-        if dst_h not in client_hexmap['hex'] and dst_fn not in client_hexmap['fname'] and path.exists( dst_f ):
+        if dst_hex not in client_hexmap['hex'] and dst_fn not in client_hexmap['fname'] and path.exists( dst_f ):
             try:                
                 remove( dst_f )
                 log_item( f"Removed {dst_f}\n" )
@@ -162,14 +156,16 @@ def diff_hex( logger ):
                 print( log_item )
                 
 
-        # replace file if hex not matching & but filename does
-        elif dst_h not in client_hexmap['hex'] and dst_fn in client_hexmap['fname'] and path.exists( dst_f ):            
-            try:                
+        # replace file if hex not matching & but filename does; refresh dst path
+        elif dst_hex not in client_hexmap['hex'] and dst_fn in client_hexmap['fname'] and path.exists( dst_f ):
+        
+            try:
                 remove( dst_f )                
                 log_item( f"Removed {dst_f}\n" )
                 logger.write( log_item )
                 print( log_item )                        
                 
+                new_path = refresh_path(dst_fn, client_hexmap, 'fname')
                 copy2(src_f, dst_f)                
                 log_item( f"Copied {src_f} to {f}\n" )
                 logger.write( log_item )
@@ -181,20 +177,13 @@ def diff_hex( logger ):
                 print( log_item )                
             
             
-        # rename file with matching hex and different name or root
-        elif dst_h in client_hexmap['hex'] and ( dst_f not in client_hexmap['fname'] or dst_root not in client_hexmap['root'] ) and path.exists( dst_f ):
+        # rename file with matching hex and different path
+        elif dst_hex in client_hexmap['hex'] and ( dst_f not in client_hexmap['fname'] or dst_root not in client_hexmap['root'] ) and path.exists( dst_f ):
         
-            # get src & cloud common rootdir
-            for z in range( len( client_hexmap['hex'] ) ):
-                if dst_h == client_hexmap['hex'][z]:
-                
-                    new_fname = client_hexmap['fname'][z]
-                    new_root = client_hexmap['root'][z]
-                    
-                    new_path = build_cloud_path(new_root, new_fname)
-                    rename( dst_f, new_path )                
-                
-                
+            new_path = refresh_path(dst_hex, client_hexmap, 'hex'])
+            rename( dst_f, new_path )
+            
+            
     # delete directories not existing on client after digest iteration, they should be empty by now
     for j in range( len( cloud_hexmap['root'] ) ):
         
