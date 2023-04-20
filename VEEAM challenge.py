@@ -24,9 +24,25 @@ __doc__ = '''
     '''
     
 
-#if len( argv ) != 6 or argv[4].isdigit() != True or argv[4].upper() not in ['S','M','H','D']:
- #   print( __doc__ )
-  #  exit()
+if len( argv ) != 6 or not argv[3].isdigit() or argv[4].upper() not in ['S','M','H','D']:
+    print( __doc__ )
+    exit()
+    
+    
+# global variables    
+timeframe = {
+    "S" : 1,
+    "M" : 60,
+    "H" : 3600,
+    "D" : 86400
+}
+client = argv[1]
+cloud = argv[2]
+# interval translated into seconds
+interval = ( int(argv[3]) * timeframe[argv[4].upper()] )
+log_path = argv[5]
+client_hexmap = {}
+cloud_hexmap = {}
 
     
 def setup_log_path( log_path ):
@@ -55,13 +71,13 @@ def setup_log_path( log_path ):
     else:
         print( f"Saving logs in {log_path}\n" )
         return True
-        
+
 
 def new_log_file( log_path, ymd_now ):  
     # File name format: dirSync_2023-04-18.txt    
     log_name = f"dirSync_{ymd_now}.txt"
     log_path = path.join( log_path, log_name )
-    log_file = open( log_path, 'a' )    
+    log_file = open( log_path, 'a', encoding = 'UTF-8' )    
     return log_file
 
 
@@ -73,7 +89,7 @@ def generate_file_hex( rootdir, filename, blocksize=8192 ):
     return hh.hexdigest()
 
 
-def generate_hexmap( target ):
+def generate_hexmap( target, logger):
     hexmap = {
         'root': [],
         'fname': [], 
@@ -85,7 +101,13 @@ def generate_hexmap( target ):
         for fname in directory[2]:
             hexmap['root'].append( root )
             hexmap['fname'].append( fname )
-            hexmap['hex'].append( generate_file_hex( root, fname ) )
+            hx = generate_file_hex( root, fname )
+            hexmap['hex'].append( hx )
+            logger.write( root )
+            logger.write( fname )
+            logger.write( hx )
+            logger.write("\n\n--------------------------------------------------\n\n")
+            
     return hexmap
 
 
@@ -109,27 +131,27 @@ def build_cloud_path(new_root, new_fname):
     return new_path
 
 
-def diff_hex(client_hexmap, cloud_hexmap, logger):
+def diff_hex( logger ):
 
-    global client, cloud
+    global client, cloud, client_hexmap, cloud_hexmap
 
     for j in range( len( cloud_hexmap['hex'] ) ):
-        
+        set_trace()
         src_root = client_hexmap['root'][j]
         src_fn = client_hexmap['fname'][j]
         src_h = client_hexmap['hex'][j]
         src_f = path.join( src_root, src_fn )
         
-        root = cloud_hexmap['root'][j]
-        fn = cloud_hexmap['fname'][j] 
-        h = cloud_hexmap['hex'][j]                
-        f = path.join( root, fn )        
+        dst_root = cloud_hexmap['root'][j]
+        dst_fn = cloud_hexmap['fname'][j] 
+        dst_h = cloud_hexmap['hex'][j]                
+        dst_f = path.join( dst_root, dst_fn )        
         
         # delete file with no matching hex & filename
-        if h not in client_hexmap['hex'] and fn not in client_hexmap['fname'] and path.exists( f ):
+        if dst_h not in client_hexmap['hex'] and dst_fn not in client_hexmap['fname'] and path.exists( dst_f ):
             try:                
-                remove( f )
-                log_item( f"Removed {f}\n" )
+                remove( dst_f )
+                log_item( f"Removed {dst_f}\n" )
                 logger.write( log_item )
                 print( log_item )
             
@@ -139,14 +161,14 @@ def diff_hex(client_hexmap, cloud_hexmap, logger):
                 print( log_item )            
 
         # replace file if hex not matching & but filename does
-        elif h not in client_hexmap['hex'] and fn in client_hexmap['fname'] and path.exists( f ):            
+        elif dst_h not in client_hexmap['hex'] and dst_fn in client_hexmap['fname'] and path.exists( dst_f ):            
             try:                
-                remove( f )                
-                log_item( f"Removed {f}\n" )
+                remove( dst_f )                
+                log_item( f"Removed {dst_f}\n" )
                 logger.write( log_item )
                 print( log_item )                        
                 
-                copy2(src_f, f)                
+                copy2(src_f, dst_f)                
                 log_item( f"Copied {src_f} to {f}\n" )
                 logger.write( log_item )
                 print( log_item )
@@ -157,15 +179,15 @@ def diff_hex(client_hexmap, cloud_hexmap, logger):
                 print( log_item )                
             
         # rename file with matching hex with different path
-        elif h in client_hexmap['hex'] and not path.exists( f ):
+        elif dst_h in client_hexmap['hex'] and not path.exists( dst_f ):
         
             # get src & cloud common rootdir
             for z in range( len( client_hexmap['hex'] ) ):
-                if h == client_hexmap['hex'][z]:
+                if dst_h == client_hexmap['hex'][z]:
                     new_fname = client_hexmap['fname'][z]
                     new_root = client_hexmap['root'][z]                    
                     new_path = build_cloud_path(new_root, new_fname)
-                    rename( f, new_path )                
+                    rename( dst_f, new_path )                
                 
     # delete directories not existing on client after digest iteration, they should be empty by now
     for j in range( len( cloud_hexmap['root'] ) ):
@@ -184,9 +206,12 @@ def diff_hex(client_hexmap, cloud_hexmap, logger):
                 log_item = f"Error: {X}\n"
                 print( log_item )
                 logger.write( log_item )
+    return
     
 
-def dump_to_cloud( client, cloud, logger ):
+def dump_to_cloud( logger ):
+
+    global client, cloud
     
     log_item = f"Performing full sync\n"
     print( log_item )
@@ -214,7 +239,7 @@ def dump_to_cloud( client, cloud, logger ):
 
 
 def one_way_sync( logger ):
-# triggered by main if finds hexmap diff
+# triggered by main if hexmap diff
     
     global client, cloud, client_hexmap, cloud_hexmap    
     
@@ -225,18 +250,18 @@ def one_way_sync( logger ):
     logger.write( log_item )
     
     # get the source directory hash map
-    client_hexmap = generate_hexmap( client )
+    client_hexmap = generate_hexmap( client, logger )
     
     # full dump to cloud storage
     if len( listdir( cloud ) ) == 0 and len( listdir( client ) ) != 0:
-        dump_to_cloud( client, cloud, logger )
+        dump_to_cloud( logger )
         cloud_hexmap = deepcopy(client_hexmap)
         
     else:
         # get the destination directory hash map
-        cloud_hexmap = generate_hexmap( cloud )    
+        cloud_hexmap = generate_hexmap( cloud, logger )    
         # compare with cloud storage hexmap: root fname hex
-        diff_hex( client_hexmap, cloud_hexmap, logger )
+        diff_hex( logger )
     
     sync_finish = datetime.now()
     
@@ -282,22 +307,6 @@ def main( log_path_set=False, logger=None ):
     else:
         sleep( sync_delta )
         main(log_path_set, logger)
-
-
-# global variables    
-timeframe = {
-    "S" : 1,
-    "M" : 60,
-    "H" : 3600,
-    "D" : 86400
-}
-client = argv[1]
-cloud = argv[2]
-# interval translated into seconds
-interval = ( int(argv[3]) * timeframe[argv[4].upper()] )
-log_path = argv[5]
-client_hexmap = {}
-cloud_hexmap = {}
 
 
 if __name__ == '__main__':
