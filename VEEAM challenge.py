@@ -89,12 +89,17 @@ def generate_file_hex( rootdir, filename, blocksize=8192 ):
     return hh.hexdigest()
 
 
-def generate_hexmap( target, logger):
+def generate_hexmap( target, logger ):
+    
+    # hexmap report contains tuple of (action, bool) used for last stage of diff_hex()
+    # action = RM || RMDIR || RENAME || PASS || UPDATE
     hexmap = {
         'root': [],
         'fname': [], 
-        'hex': []    
+        'hex': [],
+        'report': []
     }    
+    
     for directory in walk( target ):
     # ( 0=dirname, 1=[folders], 2=[files] )        
         root = directory[0]        
@@ -111,7 +116,7 @@ def generate_hexmap( target, logger):
     return hexmap
 
 
-def refresh_path(dst, client_hexmap, prop):
+def refresh_path( dst, client_hexmap, prop ):
     
     global client
     
@@ -125,10 +130,27 @@ def refresh_path(dst, client_hexmap, prop):
             return path.join( new_root, new_fname)
 
 
+def del_no_matching_hex( dst_hex, dst_fn, dst_f, client_hexmap, logger):
+    if dst_hex not in client_hexmap['hex'] and dst_fn not in client_hexmap['fname'] and path.exists( dst_f ):
+    
+        try:                
+            remove( dst_f )
+            log_item( f"Removed {dst_f}\n" )
+            logger.write( log_item )
+            print( log_item )
+            return True
+        
+        except Exception as X:
+            log_item( f"Error: {X}\n" )
+            logger.write( log_item )
+            print( log_item )
+            return False
+    
+
 def diff_hex( logger ):
 
     global client, cloud, client_hexmap, cloud_hexmap
-
+        
     for j in range( len( cloud_hexmap['hex'] ) ):
        
         src_root = client_hexmap['root'][j]
@@ -143,17 +165,8 @@ def diff_hex( logger ):
         
         set_trace()
         # delete file with no matching hex & filename
-        if dst_hex not in client_hexmap['hex'] and dst_fn not in client_hexmap['fname'] and path.exists( dst_f ):
-            try:                
-                remove( dst_f )
-                log_item( f"Removed {dst_f}\n" )
-                logger.write( log_item )
-                print( log_item )
-            
-            except Exception as X:
-                log_item( f"Error: {X}\n" )
-                logger.write( log_item )
-                print( log_item )
+        report del_no_matching_hex( dst_hex, dst_fn, dst_f, client_hexmap, logger)
+
                 
 
         # replace file if hex not matching & but filename does; refresh dst path
@@ -166,7 +179,7 @@ def diff_hex( logger ):
                 print( log_item )                        
                 
                 new_path = refresh_path(dst_fn, client_hexmap, 'fname')
-                copy2(src_f, dst_f)                
+                copy2(src_f, new_path)                
                 log_item( f"Copied {src_f} to {f}\n" )
                 logger.write( log_item )
                 print( log_item )
@@ -184,11 +197,11 @@ def diff_hex( logger ):
             rename( dst_f, new_path )
             
             
-    # delete directories not existing on client after digest iteration, they should be empty by now
+    # delete obsolete directories; they should be empty by now
     for j in range( len( cloud_hexmap['root'] ) ):
         
-        client_dirname = client_hexmap['root'][j]
-        cloud_dirname = cloud_hexmap['root'][j]
+        # use only the common rootdir
+        cloud_dirname = cloud_hexmap['root'][j][ len( cloud ) : ]
         
         if cloud_dirname not in client_hexmap['root']:        
             try:
