@@ -116,7 +116,7 @@ def diff_hex(client_hexmap, cloud_hexmap, logger):
     for j in range( len( cloud_hexmap['hex'] ) ):
         
         src_root = client_hexmap['root'][j]
-        src_fn = client_hexmap['filename'][j]
+        src_fn = client_hexmap['fname'][j]
         src_h = client_hexmap['hex'][j]
         src_f = path.join( src_root, src_fn )
         
@@ -139,7 +139,7 @@ def diff_hex(client_hexmap, cloud_hexmap, logger):
                 print( log_item )            
 
         # replace file if hex not matching & but filename does
-        elif ( h not in client_hexmap['hex'] and fn in client_hexmap['fname'] and path.exists( f ):            
+        elif h not in client_hexmap['hex'] and fn in client_hexmap['fname'] and path.exists( f ):            
             try:                
                 remove( f )                
                 log_item( f"Removed {f}\n" )
@@ -255,12 +255,12 @@ def main( log_path_set=False, logger=None ):
     ymd_now = datetime.now().strftime( '%Y-%m-%d' )    
     
     # setup log file
-    if not log_path_set:       
+    if not log_path_set:      
         log_path_set = setup_log_path( log_path )    
     
     # Check if the current log file matches the current date
     if logger == None:
-        logger = new_log_file( log_path, ymd_now )
+        logger = new_log_file( log_path, ymd_now )    
     else:
         if ymd_now not in logger.name:
             logger.close()
@@ -277,6 +277,7 @@ def main( log_path_set=False, logger=None ):
     logger.write(log_item)
     
     if sync_delta <= 0:
+        sleep( interval )
         main(log_path_set, logger)
     else:
         sleep( sync_delta )
