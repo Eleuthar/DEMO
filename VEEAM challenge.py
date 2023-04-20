@@ -4,6 +4,7 @@ from os import walk, listdir, path, mkdir, replace, remove, removedirs
 from shutil import copytree, copy2
 from datetime import datetime
 from time import sleep
+from copy import deepcopy
 
 from pdb import set_trace
 
@@ -30,9 +31,9 @@ __doc__ = '''
     
 def setup_log_path( log_path ):
 # implemented log path validation since user interpretation can be ambiguous: either provide a directory to be created or use an existing one.
-    #set_trace()
+    
     print( f"Validating log directory: {log_path}\n" )    
-    # set a unique delimiter rega6rdless of platform (Linux\Windows)
+    # set a unique delimiter regardless of platform (Linux\Windows)
     
     # folder check
     if not path.exists( log_path ):
@@ -88,14 +89,113 @@ def generate_hexmap( client ):
     return hexmap
 
 
-def dump_to_cloud( client, cloud, logger ):
+def diff_hex(client_hexmap, cloud_hexmap):
+    
+    '''
+    diff hex	
+        diff filename
+            - DELETE	
+        diff root
+            - DELETE & COPY TO NEW ROOT
 
+    diff filename	
+        eq hex
+            diff root ?	
+            - RENAME
+    '''
+    
+
+
+    for j in range( len( cloud_hexmap['hex'] ) ):
+          
+        # delete file with not matching hex & file not in source
+        if ( cloud_hexmap['hex'][j] not in client_hexmap['hex'] and 
+            cloud_hexmap['fname'][j] not in client_hexmap['fname']and 
+            path.exists( path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] ) ) ):
+            
+            try:
+                f = path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] )
+                remove( f )
+                log_item( f"Removed {f}\n" )
+                logger.write( log_item )
+                print( log_item )
+            
+            except Exception as X:
+                log_item( f"Error: {X}\n" )
+                logger.write( log_item )
+                print( log_item )
+            
+
+        # replace file if hex not matching
+        elif ( cloud_hexmap['hex'][j] not in client_hexmap['hex'] and 
+            cloud_hexmap['fname'][j] in client_hexmap['fname'] and 
+            path.exists( path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] ) ) ):
+            
+            try:
+                f = path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] )
+                remove( f )
+                
+                log_item( f"Removed {f}\n" )
+                logger.write( log_item )
+                print( log_item )
+                
+                src = path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] )
+                dst = path.join( client_hexmap['root'][j], client_hexmap['fname'][j] )
+                copy2(src, dst)
+                
+                log_item( f"Copied {src} to {dst}\n" )
+                logger.write( log_item )
+                print( log_item )
+            
+            except Exception as X:
+                log_item( f"Error: {X}\n" )
+                logger.write( log_item )
+                print( log_item )
+                
+            
+        # rename file with matching hex with different root \ filename in cloud
+        elif cloud_hexmap['hex'][j] in client_hexmap['hex'] and not path.exists( path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] ) ):
+            
+            dst = path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] )
+            src = path.join( client_hexmap['root'][j], client_hexmap['fname'][j] )
+            
+            try:
+                replace( src, dst )
+                log_item( f"Replaced {dst} with {src}\n" )
+                logger.write( log_item )
+                print( log_item )
+            
+            except Exception as X:
+                log_item( f"Error: {X}\n" )
+                logger.write( log_item )
+                print( log_item )
+                
+                
+    # delete directories not existing on cloud after digest iteration
+    for j in range( len( cloud_hexmap['root'] ) ):
+        
+        if client_hexmap['root'][j] not in client_hexmap['root']:
+        
+            try:
+                removedirs( cloud_hexmap['root'][j] )
+                log_item = f"Deleted directory {cloud_hexmap['root'][j]}\n"
+                print( log_item )
+                logger.write( log_item )
+            
+            except Exception as X:
+                log_item = f"Error: {X}\n"
+                print( log_item )
+                logger.write( log_item )
+    
+
+
+def dump_to_cloud( client, cloud, logger ):
+    
     log_item = f"Performing full sync\n"
     print( log_item )
     logger.write( log_item )
-        
-    for item in listdir(client):
-    
+
+    for item in listdir(client):    
         try:
             src = path.join( client, item )
             dst = path.join( cloud, item )
@@ -117,11 +217,12 @@ def dump_to_cloud( client, cloud, logger ):
 
 
 def one_way_sync( logger ):
-
+# triggered by main if finds hexmap diff
+    
     global client, cloud, client_hexmap, cloud_hexmap    
     
     sync_start = datetime.now()
-    
+     
     log_item = f"Starting sync at {datetime.now().strftime( '%y-%m-%d %H:%M' )}\n"
     print( log_item )
     logger.write( log_item )
@@ -130,94 +231,16 @@ def one_way_sync( logger ):
     client_hexmap = generate_hexmap( client )
     
     # full dump to cloud storage
-    if len(listdir(cloud)) == 0:
-        cloud_hexmap = client_hexmap
+    if len( listdir( cloud ) ) == 0 and len( listdir( client ) ) != 0:
         dump_to_cloud( client, cloud, logger )
-            
-    # compare with cloud storage hexmap: root fname hex
+        cloud_hexmap = deepcopy(client_hexmap)
+        
     else:
-        for j in range( len( cloud_hexmap['hex'] ) ):
-              
-            # delete file with not matching hex & file not in source
-            if ( cloud_hexmap['hex'][j] not in client_hexmap['hex'] and 
-                cloud_hexmap['fname'][j] not in client_hexmap['fname']and 
-                path.exists( path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] ) ) ):
-                
-                try:
-                    f = path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] )
-                    remove( f )
-                    log_item( f"Removed {f}\n" )
-                    logger.write( log_item )
-                    print( log_item )
-                
-                except Exception as X:
-                    log_item( f"Error: {X}\n" )
-                    logger.write( log_item )
-                    print( log_item )
-                
-
-            # replace file if hex not matching
-            elif ( cloud_hexmap['hex'][j] not in client_hexmap['hex'] and 
-                cloud_hexmap['fname'][j] in client_hexmap['fname'] and 
-                path.exists( path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] ) ) ):
-                
-                try:
-                    f = path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] )
-                    remove( f )
-                    
-                    log_item( f"Removed {f}\n" )
-                    logger.write( log_item )
-                    print( log_item )
-                    
-                    src = path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] )
-                    dst = path.join( client_hexmap['root'][j], client_hexmap['fname'][j] )
-                    copy2(src, dst)
-                    
-                    log_item( f"Copied {src} to {dst}\n" )
-                    logger.write( log_item )
-                    print( log_item )
-                
-                except Exception as X:
-                    log_item( f"Error: {X}\n" )
-                    logger.write( log_item )
-                    print( log_item )
-                    
-                
-            # rename file with matching hex with different root \ filename in cloud
-            elif cloud_hexmap['hex'][j] in client_hexmap['hex'] and not path.exists( path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] ) ):
-                
-                dst = path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] )
-                src = path.join( client_hexmap['root'][j], client_hexmap['fname'][j] )
-                
-                try:
-                    replace( src, dst )
-                    log_item( f"Replaced {dst} with {src}\n" )
-                    logger.write( log_item )
-                    print( log_item )
-                
-                except Exception as X:
-                    log_item( f"Error: {X}\n" )
-                    logger.write( log_item )
-                    print( log_item )
-                    
-                    
-        # delete directories not existing on client after digest iteration
-        for j in range( len( cloud_hexmap['root'] ) ):
-            
-            if client_hexmap['root'][j] not in client_hexmap['root']:
-            
-                try:
-                    removedirs( cloud_hexmap['root'][j] )
-                    log_item = f"Deleted directory {cloud_hexmap['root'][j]}\n"
-                    print( log_item )
-                    logger.write( log_item )
-                
-                except Exception as X:
-                    log_item = f"Error: {X}\n"
-                    print( log_item )
-                    logger.write( log_item )
-                                
-                    
+        # get the destination directory hash map
+        cloud_hexmap = generate_hexmap( cloud )    
+        # compare with cloud storage hexmap: root fname hex
+        diff_hex( client_hexmap, cloud_hexmap )
+    
     sync_finish = datetime.now()
     
     log_item = f"Finished sync at {datetime.now().strftime( '%y-%m-%d %H:%M' )}\n"
@@ -249,7 +272,7 @@ def main( log_path_set=False, logger=None ):
     # sync folders
     sync_duration = one_way_sync( logger )    
     
-    # determine last sync duration to cut from the interval sleep time until next sync
+    # determine last sync duration to cut from the interval sleep time until next sync 
     sync_delta = sync_duration - interval
     
     log_item = f"Last sync took {sync_duration}\n"
@@ -273,7 +296,7 @@ timeframe = {
 client = argv[1]
 cloud = argv[2]
 # interval translated into seconds
-interval = ( argv[3] * timeframe[argv[4].upper()] )
+interval = ( int(argv[3]) * timeframe[argv[4].upper()] )
 log_path = argv[5]
 client_hexmap = {}
 cloud_hexmap = {}
