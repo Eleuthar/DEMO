@@ -1,6 +1,6 @@
 from hashlib import md5
 from sys import argv
-from os import listdir, path, mkdir, replace, remove, removedirs
+from os import walk, listdir, path, mkdir, replace, remove, removedirs
 from shutil import copytree, copy2
 from datetime import datetime
 from time import sleep
@@ -9,7 +9,7 @@ from pdb import set_trace
 
 
 __doc__ = '''
-    Usage: python dir_sync.py <source_path> <destination_path> <integer> <S||M||H||D> <log_path>
+    Usage: python dirSync.py <source_path> <destination_path> <integer> <S||M||H||D> <log_path>
     S = SECONDS
     M = MINUTES
     H = HOURS
@@ -23,48 +23,50 @@ __doc__ = '''
     '''
     
 
-if len( argv ) != 5 or argv[3].isdigit() != True or argv[4].upper() not in ['S','M','H','D']:
-    print( __doc__ )
-    exit()
+#if len( argv ) != 6 or argv[4].isdigit() != True or argv[4].upper() not in ['S','M','H','D']:
+ #   print( __doc__ )
+  #  exit()
 
-#set_trace()
     
-def setup_log_path( client_path ):
+def setup_log_path( log_path ):
 # implemented log path validation since user interpretation can be ambiguous: either provide a directory to be created or use an existing one.
-    print( f"Validating log directory: {client_path}\n" )    
-    # set a unique delimiter regardless of platform (Linux\Windows)
-    if '\\' in client_path:
-        client_path.replace( '\\', '/' )
+    #set_trace()
+    print( f"Validating log directory: {log_path}\n" )    
+    # set a unique delimiter rega6rdless of platform (Linux\Windows)
+    
     # folder check
-    if not path.exists( client_path ):
-        split_path = path.split( '/' )
+    if not path.exists( log_path ):
+        if '\\' in log_path:
+            log_path = log_path.replace( '\\', '/' )
+        split_path = log_path.split( '/' )
         dir_name = split_path.pop()
+        upper_dirname = split_path[-1]
         upper_dir = '/'.join( split_path )
-        print( f'Directory "{dir_name}" does not exist. Will create it if the upper directory is valid.\n' )
+        print( f'Directory "{dir_name}" does not exist. Will create it if upper directory {upper_dirname} is valid.\n' )
         # upper folder check
         if not path.exists( upper_dir ):                
-            print( f"Upper directory of {dir_name} does not exist either\n.Please use an existing directory to store the logs." )              
+            print( f"Upper directory of {dir_name} does not exist either\n.Please use an existing directory to store the logs." )
             exit()        
         else:
             print( f"Creating {dir_name} under {upper_dir}\n" )
-            os.mkdir( client_path )
+            mkdir( log_path )
             return True      
     else:
-        print( f"Saving logs in {client_path}\n"
+        print( f"Saving logs in {log_path}\n" )
         return True
         
 
 def new_log_file( log_path, ymd_now ):  
     # File name format: dirSync_2023-04-18.txt    
     log_name = f"dirSync_{ymd_now}.txt"
-    log_path = os.path.join( log_path, log_name )
+    log_path = path.join( log_path, log_name )
     log_file = open( log_path, 'a' )    
     return log_file
 
 
 def generate_file_hex( rootdir, filename, blocksize=8192 ):
     hh = md5()
-    with open( os.path.join( rootdir, filename ) , "rb" ) as f:
+    with open( path.join( rootdir, filename ) , "rb" ) as f:
         while buff := f.read( blocksize ):
             hh.update( buff )
     return hh.hexdigest()
@@ -76,7 +78,7 @@ def generate_hexmap( client ):
         'fname': [], 
         'hex': []    
     }    
-    for directory in os.walk( client ):
+    for directory in walk( client ):
     # ( 0=dirname, 1=[folders], 2=[files] )        
         root = directory[0]        
         for fname in directory[2]:
@@ -93,8 +95,16 @@ def dump_to_cloud( client, cloud, logger ):
     logger.write( log_item )
         
     for item in listdir(client):
+    
         try:
-            copytree(item, path.join( cloud, item ) if path.isdir( item ) else copy2( item, path.join( cloud, item ) )
+            src = path.join( client, item )
+            dst = path.join( cloud, item )
+            
+            if path.isdir( src ):                
+                copytree(src, dst )
+            else:
+                copy2( src, dst )
+                
             log_item = f"Copied {item}\n"
             print( log_item )
             logger.write( log_item )
@@ -120,7 +130,7 @@ def one_way_sync( logger ):
     client_hexmap = generate_hexmap( client )
     
     # full dump to cloud storage
-    if listdir(cloud) == 0:    
+    if len(listdir(cloud)) == 0:
         cloud_hexmap = client_hexmap
         dump_to_cloud( client, cloud, logger )
             
@@ -149,7 +159,7 @@ def one_way_sync( logger ):
             # replace file if hex not matching
             elif ( cloud_hexmap['hex'][j] not in client_hexmap['hex'] and 
                 cloud_hexmap['fname'][j] in client_hexmap['fname'] and 
-                path.exists( path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] ) ):
+                path.exists( path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] ) ) ):
                 
                 try:
                     f = path.join( cloud_hexmap['root'][j], cloud_hexmap['fname'][j] )
@@ -226,7 +236,7 @@ def main( log_path_set=False, logger=None ):
     
     # setup log file
     if not log_path_set:       
-        log_path_set = setup_log_file( log_path, ymd_now )    
+        log_path_set = setup_log_path( log_path )    
     
     # Check if the current log file matches the current date
     if logger == None:
@@ -240,9 +250,9 @@ def main( log_path_set=False, logger=None ):
     sync_duration = one_way_sync( logger )    
     
     # determine last sync duration to cut from the interval sleep time until next sync
-    sync_delta = sync_duration - interval )
+    sync_delta = sync_duration - interval
     
-    log_item = f"Last sync took {sync_duration}\n")
+    log_item = f"Last sync took {sync_duration}\n"
     print(log_item)
     logger.write(log_item)
     
