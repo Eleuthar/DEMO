@@ -48,7 +48,7 @@ cloud_hexmap = {}
 def setup_log_path( log_path ):
 # implemented log path validation since user interpretation can be ambiguous: either provide a directory to be created or use an existing one.
     
-    print( f"Validating log directory: {log_path}\n" )    
+    print( f'Validating log directory: "{log_path}"\n' )    
     # set a unique delimiter regardless of platform (Linux\Windows)
     
     # folder check
@@ -59,10 +59,10 @@ def setup_log_path( log_path ):
         dir_name = split_path.pop()
         upper_dirname = split_path[-1]
         upper_dir = '/'.join( split_path )
-        print( f'Directory "{dir_name}" does not exist. Will create it if upper directory {upper_dirname} is valid.\n' )
+        print( f'Directory "{dir_name}" does not exist. Will create it if upper directory "{upper_dirname}" is valid.\n' )
         # upper folder check
         if not path.exists( upper_dir ):                
-            print( f"Upper directory of {dir_name} does not exist either\n.Please use an existing directory to store the logs." )
+            print( f"Upper directory of {dir_name} does not exist either.\nPlease use an existing directory to store the logs." )
             exit()        
         else:
             print( f"Creating {dir_name} under {upper_dir}\n" )
@@ -136,7 +136,7 @@ def diff_hex( logger ):
     global client, cloud, client_hexmap, cloud_hexmap
 
     for j in range( len( cloud_hexmap['hex'] ) ):
-        set_trace()
+       
         src_root = client_hexmap['root'][j]
         src_fn = client_hexmap['fname'][j]
         src_h = client_hexmap['hex'][j]
@@ -147,6 +147,7 @@ def diff_hex( logger ):
         dst_h = cloud_hexmap['hex'][j]                
         dst_f = path.join( dst_root, dst_fn )        
         
+        set_trace()
         # delete file with no matching hex & filename
         if dst_h not in client_hexmap['hex'] and dst_fn not in client_hexmap['fname'] and path.exists( dst_f ):
             try:                
@@ -158,7 +159,8 @@ def diff_hex( logger ):
             except Exception as X:
                 log_item( f"Error: {X}\n" )
                 logger.write( log_item )
-                print( log_item )            
+                print( log_item )
+                
 
         # replace file if hex not matching & but filename does
         elif dst_h not in client_hexmap['hex'] and dst_fn in client_hexmap['fname'] and path.exists( dst_f ):            
@@ -178,16 +180,20 @@ def diff_hex( logger ):
                 logger.write( log_item )
                 print( log_item )                
             
-        # rename file with matching hex with different path
-        elif dst_h in client_hexmap['hex'] and not path.exists( dst_f ):
+            
+        # rename file with matching hex and different name or root
+        elif dst_h in client_hexmap['hex'] and ( dst_f not in client_hexmap['fname'] or dst_root not in client_hexmap['root'] ) and path.exists( dst_f ):
         
             # get src & cloud common rootdir
             for z in range( len( client_hexmap['hex'] ) ):
                 if dst_h == client_hexmap['hex'][z]:
+                
                     new_fname = client_hexmap['fname'][z]
-                    new_root = client_hexmap['root'][z]                    
+                    new_root = client_hexmap['root'][z]
+                    
                     new_path = build_cloud_path(new_root, new_fname)
                     rename( dst_f, new_path )                
+                
                 
     # delete directories not existing on client after digest iteration, they should be empty by now
     for j in range( len( cloud_hexmap['root'] ) ):
