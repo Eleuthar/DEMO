@@ -1,11 +1,10 @@
 from hashlib import md5
 from sys import argv
-from os import walk, listdir, path, mkdir, replace, remove, removedirs
+from os import walk, listdir, path, mkdir, replace, remove, removedirs, rename
 from shutil import copytree, copy2
 from datetime import datetime
 from time import sleep
 from copy import deepcopy
-import pandas as p
 
 from pdb import set_trace
 
@@ -21,35 +20,35 @@ __doc__ = '''
     $ python dir_sync.py "C:\\Users\\MrRobot\\Documents\\Homework\\" "C:\\Users\\MrRobot\\Downloads\\VEEAM_CLOUD\\Homework\\" 5 M "C:\\Program Files\\VEEAM\\logs\\"
     
     Example for synchronizing every 5 seconds with relative path:
-    $ python ..\INFOSEC .\INFOSEC 5 S .\logz
+    $ python ..\\INFOSEC .\\INFOSEC 5 S .\\logz
     '''
     
 
-if len( argv ) != 6 or not argv[3].isdigit() or argv[4].upper() not in ['S','M','H','D']:
+if len( argv ) != 6 or not argv[3].isdigit() or argv[4].upper() not in [ 'S','M','H','D' ]:
     print( __doc__ )
     exit()
     
     
 # global variables    
-timeframe = {
+timeframe = { 
     "S" : 1,
     "M" : 60,
     "H" : 3600,
     "D" : 86400
-}
+ }
 client = argv[1]
 cloud = argv[2]
 # interval translated into seconds
-interval = ( int(argv[3]) * timeframe[argv[4].upper()] )
+interval = ( int( argv[3] ) * timeframe[ argv[4].upper( ) ] )
 log_path = argv[5]
-client_hexmap = {}
-cloud_hexmap = {}
+client_hexmap = { }
+cloud_hexmap = { }
 
     
 def setup_log_path( log_path ):
 # implemented log path validation since user interpretation can be ambiguous: either provide a directory to be created or use an existing one.
     
-    print( f'Validating log directory: "{log_path}"\n' )    
+    print( f'Validating log directory: "{ log_path }"\n' )    
     # set a unique delimiter regardless of platform (Linux\Windows)
     
     # folder check
@@ -60,209 +59,158 @@ def setup_log_path( log_path ):
         dir_name = split_path.pop()
         upper_dirname = split_path[-1]
         upper_dir = '/'.join( split_path )
-        print( f'Directory "{dir_name}" does not exist. Will create it if upper directory "{upper_dirname}" is valid.\n' )
+        print( f'Directory "{ dir_name }" does not exist. Will create it if upper directory "{ upper_dirname }" is valid.\n' )
         # upper folder check
         if not path.exists( upper_dir ):                
-            print( f"Upper directory of {dir_name} does not exist either.\nPlease use an existing directory to store the logs." )
+            print( f"Upper directory of { dir_name } does not exist either.\nPlease use an existing directory to store the logs." )
             exit()        
         else:
-            print( f"Creating {dir_name} under {upper_dir}\n" )
+            print( f"Creating { dir_name } under { upper_dir }\n" )
             mkdir( log_path )
             return True      
     else:
-        print( f"Saving logs in {log_path}\n" )
+        print( f"Saving logs in { log_path }\n" )
         return True
 
 
 def new_log_file( log_path, ymd_now ):  
     # File name format: dirSync_2023-04-18.txt    
-    log_name = f"dirSync_{ymd_now}.txt"
+    log_name = f"dirSync_{ ymd_now }.txt"
     log_path = path.join( log_path, log_name )
     log_file = open( log_path, 'a', encoding = 'UTF-8' )    
     return log_file
 
 
-def generate_file_hex( rootdir, filename, blocksize=8192 ):
+def generate_file_hex( target, rootdir, filename, blocksize=8192 ):
     hh = md5()
-    with open( path.join( rootdir, filename ) , "rb" ) as f:
+    with open( path.join( target, rootdir, filename ) , "rb" ) as f:
         while buff := f.read( blocksize ):
             hh.update( buff )
     return hh.hexdigest()
 
 
-def generate_hexmap( target, logger ):
-    
+def generate_hexmap( target, logger ):    
     # hexmap report contains tuple of (action, bool) used for last stage of diff_hex()
     # action = RM ||  RENAME || PASS || UPDATE || CREATE
-    hexmap = {
+    hexmap = { 
         'root': [],
         'fname': [], 
         'hex': [],
         'report': []
-    }    
-    
+     }    
     for directory in walk( target ):
-    # ( 0=dirname, 1=[folders], 2=[files] )        
-        root = directory[0]        
+    # ( 0=dirname, 1=[folders], 2=[files] )   
+		
+		# separate starting from basename      
+        root = directory[0][ len( target ) : ]
+        
         for fname in directory[2]:
-            hexmap['root'].append( root )
-            hexmap['fname'].append( fname )
-            hx = generate_file_hex( root, fname )
-            hexmap['hex'].append( hx )
+            hexmap[ 'root' ].append( root )
+            hexmap[ 'fname' ].append( fname )
+            hx = generate_file_hex( target, root, fname )
+            hexmap[ 'hex' ].append( hx )
+            
             logger.write( root )
             logger.write( fname )
             logger.write( hx )
-            logger.write("\n\n--------------------------------------------------\n\n")
-            
+            logger.write("\n\n--------------------------------------------------\n\n")            
     return hexmap
 
 
-def refresh_path( dst, client_hexmap, prop ):
-    
-    global client
-    
-    for z in range( len( client_hexmap[prop] ) ):
-        
-        if dst == client_hexmap[prop][z]:                    
+def refresh_path( dst_prop, prop ):
+
+    global client, client_hexmap
+    new_root, new_fname = None, None
+
+    for z in range( len( client_hexmap[ prop ] ) ): 
+               
+        if dst_prop == client_hexmap[ prop ][ z ]:
             
-            new_fname = client_hexmap['fname'][z]            
-            new_root = client_hexmap['root'][z][ len( client ) : ]
-            
-            return path.join( new_root, new_fname)
-
-
-def replace_by_fname( dst_hex, dst_fn, dst_f, client_hexmap, logger ):
-# action = RM ||  RENAME || PASS || UPDATE || CREATE
-
-    if dst_hex not in client_hexmap['hex'] and dst_fn in client_hexmap['fname'] and path.exists( dst_f ):
+            new_fname = client_hexmap[ 'fname' ][ z ]            
+            new_root = client_hexmap[ 'root' ][ z ][ len( client ) : ]
+            # new_root holds the common root path that must be replicated
+            break
         
-            try:
-                remove( dst_f )                
-                log_item( f"Removed {dst_f}\n" )
-                logger.write( log_item )
-                print( log_item )                        
-                
-                new_path = refresh_path( dst_fn, client_hexmap, 'fname' )
-                copy2( src_f, new_path )                
-                log_item( f"Copied {src_f} to {f}\n" )
-                logger.write( log_item )
-                print( log_item )
-                return ( 'UPDATE', True )
-            
-            except Exception as X:
-                log_item( f"Error: {X}\n" )
-                logger.write( log_item )
-                print( log_item ) 
-                return ( 'UPDATE', False )
-    else:
-        return None
+    return new_root, new_fname
 
 
-def del_no_matching_hex( dst_hex, dst_fn, dst_f, client_hexmap, logger):
-# action = RM ||  RENAME || PASS || UPDATE || CREATE
-
-    if dst_hex not in client_hexmap['hex'] and dst_fn not in client_hexmap['fname'] and path.exists( dst_f ):
+def rm_obsolete_dir( target, root, logger ):
+# action = RM ||  RENAME || PASS || UPDATE || CREATE      
+	try:
+		removedirs( path.join( target, root ) )
+		log_item = f"Deleted directory { root }\n"
+		print( log_item )
+		logger.write( log_item )
+		
+	except Exception as X:
+		log_item = f"Error: { X }\n"
+		print( log_item )
+		logger.write( log_item )
     
-        try:                
-            remove( dst_f )
-            log_item( f"Removed {dst_f}\n" )
-            logger.write( log_item )
-            print( log_item )
-            return ('RM', True)
-        
-        except Exception as X:
-            log_item( f"Error: {X}\n" )
-            logger.write( log_item )
-            print( log_item )
-            return ('RM', False)
-    else:    
-        return None
-    
-
-def rename_matching_hex( dst_hex, dst_f, dst_root, client_hexmap, logger ):
-# action = RM ||  RENAME || PASS || UPDATE || CREATE
-    if dst_hex in client_hexmap['hex'] and ( dst_f not in client_hexmap['fname'] or dst_root not in client_hexmap['root'] ) and path.exists( dst_f ):
-    
-        try:
-            new_path = refresh_path( dst_hex, client_hexmap, 'hex'] )
-            rename( dst_f, new_path )
-            log_item( f"Renamed {dst_f} to {new_path}\n" )
-            logger.write( log_item )
-            print( log_item )
-            return ('RENAME', True)
-
-        except Exception as X:
-            log_item( f"Error: {X}\n" )
-            logger.write( log_item )
-            print( log_item )
-            return ('RENAME', False)
-    else:    
-        return None   
-
-
-def del_obsolete_dir( logger ):
-# action = RM ||  RENAME || PASS || UPDATE || CREATE
-
-    global client_hexmap, cloud_hexmap
-
-    for j in range( len( cloud_hexmap['root'] ) ):
-        
-        # use only the common rootdir
-        cloud_dirname = cloud_hexmap['root'][j][ len( cloud ) : ]
-        
-        if cloud_dirname not in client_hexmap['root']:        
-            try:
-                removedirs( cloud_dirname )
-                log_item = f"Deleted directory {cloud_dirname}\n"
-                print( log_item )
-                logger.write( log_item )
-                
-            except Exception as X:
-                log_item = f"Error: {X}\n"
-                print( log_item )
-                logger.write( log_item )
-    return
+	return
         
 
 def diff_hex( logger ):
+	'''
+    scandir
+    
+	same hex
+		same path
+		different filename || root || path
 
-    global client, cloud, client_hexmap, cloud_hexmap
+	no hex match
+		same path
+		same filename but diff root
+		no path match
+	'''	
+	global client, cloud, client_hexmap, cloud_hexmap  
+
+	for j in range( len( cloud_hexmap[ 'hex' ] ) ):
         
-    for j in range( len( cloud_hexmap['hex'] ) ):
-       
-        src_root = client_hexmap['root'][j]
-        src_fn = client_hexmap['fname'][j]
-        src_hex = client_hexmap['hex'][j]
-        src_f = path.join( src_root, src_fn )
+		dst_root = cloud_hexmap[ 'root' ][ j ]
+		dst_fn = cloud_hexmap[ 'fname' ][ j ] 
+		dst_hex = cloud_hexmap[ 'hex' ][ j ]                
+		dst_f = path.join( dst_root, dst_fn )        
         
-        dst_root = cloud_hexmap['root'][j]
-        dst_fn = cloud_hexmap['fname'][j] 
-        dst_hex = cloud_hexmap['hex'][j]                
-        dst_f = path.join( dst_root, dst_fn )        
-        
-        set_trace()        
-        
+		set_trace()
+
+		# same hex
+			# same path
+			# different filename || root || path
+
+		# no hex match
+			# same path
+			# same filename but diff root
+			# no path match
+
+		report = pass_on_full_match( dst_hex, dst_root, dst_fn, logger )
+	
+		if report:
+            cloud_hexmap[ 'report' ][ j ] = report
+            continue
+    
         # delete file with no matching hex & filename
-        report = del_no_matching_hex( dst_hex, dst_fn, dst_f, client_hexmap, logger)        
+        report = del_no_matching_hex( dst_hex, dst_fn, dst_f, logger)
+        
         if report != None:
-            cloud_hexmap['report'][j] = report
+            cloud_hexmap[ 'report' ][ j ] = report
             continue
         
-        # replace file if hex not matching & but filename does; refresh dst path
-        report = replace_by_fname( dst_hex, dst_fn, dst_f, client_hexmap, logger )
+        # replace file if hex not matching & but filename does; refresh dst path        
+        report = replace_by_fname( dst_hex, dst_fn, dst_f, logger )
+        
         if report != None:
-            cloud_hexmap['report'][j] = report
+            cloud_hexmap[ 'report' ][ j ] = report
             continue            
             
         # rename file with matching hex and different path
-        report = rename_matching_hex(dst_hex, dst_f, dst_root, client_hexmap, logger)
+        report = rename_matching_hex(dst_hex, dst_root, dst_f, logger)
+        
         if report != None:
-            cloud_hexmap['report'][j] = report
+            cloud_hexmap[ 'report' ][ j ] = report
             continue
              
-    # delete obsolete directories; they should be empty by now
-    del_obsolete_dir( logger )
-    
+ 
 
 def dump_to_cloud( logger ):
 
@@ -282,12 +230,12 @@ def dump_to_cloud( logger ):
             else:
                 copy2( src, dst )
                 
-            log_item = f"Copied {item}\n"
+            log_item = f"Copied { item }\n"
             print( log_item )
             logger.write( log_item )
             
         except Exception as X:
-            log_item = f"Error: {X}\n"
+            log_item = f"Error: { X }\n"
             print( log_item )
             logger.write( log_item )            
     return
@@ -296,11 +244,11 @@ def dump_to_cloud( logger ):
 def one_way_sync( logger ):
 # triggered by main if hexmap diff
     
-    global client, cloud, client_hexmap, cloud_hexmap    
+    global client, cloud, client_hexmap, cloud_hexmap
     
     sync_start = datetime.now()
      
-    log_item = f"Starting sync at {datetime.now().strftime( '%y-%m-%d %H:%M' )}\n"
+    log_item = f"Starting sync at { datetime.now().strftime( '%y-%m-%d %H:%M' ) }\n"
     print( log_item )
     logger.write( log_item )
     
@@ -320,7 +268,7 @@ def one_way_sync( logger ):
     
     sync_finish = datetime.now()
     
-    log_item = f"Finished sync at {datetime.now().strftime( '%y-%m-%d %H:%M' )}\n"
+    log_item = f"Finished sync at { datetime.now().strftime( '%y-%m-%d %H:%M' ) }\n"
     print( log_item )
     logger.write( log_item )
     
@@ -352,7 +300,7 @@ def main( log_path_set=False, logger=None ):
     # determine last sync duration to cut from the interval sleep time until next sync 
     sync_delta = sync_duration - interval
     
-    log_item = f"Last sync took {sync_duration}\n"
+    log_item = f"Last sync took { sync_duration }\n"
     print(log_item)
     logger.write(log_item)
     
