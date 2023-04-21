@@ -127,7 +127,31 @@ def generate_hexmap( target, logger ):
 			logger.write( hx )
 			logger.write("\n\n{60*'-'}\n\n")			
 	return hexmap
-	   
+
+
+def rename_it( logger, hexmap_report_index, prop, old_fname ):
+
+	global client_hexmap, cloud
+
+	for z in range( len( client_hexmap[ 'hex' ] ) ):
+					
+		if prop == client_hexmap[ 'hex' ][ z ]:			
+		# extract the corresponding full path on client side	
+			new_fname = client_hexmap[ 'fname' ][ z ]			
+			new_root = client_hexmap[ 'root' ][ z ]
+
+			new_path = path.join( cloud, new_root, new_fname )
+			old_path = path.join( cloud, old_fname )
+			
+			try:
+				rename( new_path, old_path )
+				log_it( logger, f"Renamed {old_path} to {new_path}\n", hexmap_report_index, 'RENAMED' )
+
+			except Exception as X:
+				log_it( logger, f"{X}\n", hexmap_report_index, 'RENAME FAIL' )
+
+			return
+
 	
 def rm_empty_dir( target, root, logger ):
 # action = RM ||  RENAME || PASS || UPDATE || CREATE	  
@@ -141,68 +165,64 @@ def rm_empty_dir( target, root, logger ):
 	return
 		
 
-def diff_hex( logger ):
-	
+def diff_hex( logger ):	
 	# start from the client deepest root	
-	# if root not in cloud ['root'], review content recursively to remove\move\keep\update, then add in dir_to_delete[] for final cleanup	
-
-	# content scenario:	
-	# 	same hex
-	# 		same path
-	# 		different filename || root || path
-
-	# 	no hex match
-	# 		same path
-	# 		same filename but diff root
-	# 		no path match
+	# if root not in cloud ['root'], review content recursively to remove\move\keep\update, then add to set for final cleanup
 	
-	global client, cloud, client_hexmap, cloud_hexmap
-		
+	global client, cloud, client_hexmap, cloud_hexmap		
 	dir_to_rm = set()
 
 	# compare cloud against client
 	for hx_tgt in reversed( cloud_hexmap['hex'] ):
 	
 		j = cloud_hexmap['hex'].index( hx_tgt )
-										
+
 		dst_root = cloud_hexmap[ 'root' ][ j ]
 		dst_fn = cloud_hexmap[ 'fname' ][ j ] 
-		dst_hex = cloud_hexmap[ 'hex' ][ j ]				
+		dst_hex = cloud_hexmap[ 'hex' ][ j ]		
+		reporting_unit = cloud_hexmap[ 'report' ][ j ]
+
 		dst_f = path.join( dst_root, dst_fn )
+		path_on_client = path.join( client, dst_f )
+		path_on_cloud = path.join( cloud, dst_f )
+
+		# same hex
+		if dst_hex in client_hexmap['hex']:
+			# same path > PASS
+			if path.exists( path_on_client ):
+				log_it( logger, f"PASS { dst_f }\n", reporting_unit,'PASS' )
+				continue
+			# different filename || root || path > RENAME
+			else:				
+				rename_it( logger, reporting_unit, dst_hex, dst_f )
+			
+		# no hex match
+		else:
+			# same path > REPLACED
+			if path.exists( path_on_client ):
+				log_it( logger, f"UPDATING { dst_f }\n" )
+				try:
+					target = path.join( cloud, dst_f, )
+					remove( path.join( target ) )
+					copy2( path_on_client, target )
+					log_it( logger, f"UPDATED { dst_f }\n", reporting_unit,'UPDATED' )
+					continue
+				except Exception as X:
+					log_it( logger,  f"Error: { X }\n" )
+			
+			# same filename but diff root > RENAME
+			elif not path.exists( path_on_client ) and dst_fn in client_hexmap['fname']:
+				rename_it( logger, reporting_unit, dst_root, dst_f )
+				
+			# no path match > DELETE
+			else:
+				try:
+					remove(path_on_cloud)
+				except Exception as X:
+					log_it( logger, f"DELETED {dst_f}\n", reporting_unit, 'DELETED')
 
 		if dst_root not in client_hexmap[ 'root' ]:
 			dir_to_rm.add( dst_root )
-
-		# same hex
-		if dst_hex in client_hexmap['hex']:						
-			path_on_client = path.join( client, dst_f )
-						
-			# same path
-			if path.exists( path_on_client ):
-				log_it( logger, f"PASS { dst_f }\n", cloud_hexmap[ 'report' ][ j ],'PASS' )
-				continue
-
-			# different filename || root || path
-			else:
-				# extract the corresponding full path on client side
-				for z in range( len( client_hexmap[ 'hex' ] ) ):
-					
-					if dst_hex == client_hexmap[ 'hex' ][ z ]:			
-						
-						new_fname = client_hexmap[ 'fname' ][ z ]			
-						new_root = client_hexmap[ 'root' ][ z ]
-
-						new_path = path.join( cloud, new_root, new_fname )
-						old_path = path.join( cloud, dst_f )
-						
-						rename( new_path, old_path )
-						log_it( logger, f"Renamed {old_path} to {new_path}\n", cloud_hexmap[ 'report' ][ j ], 'RENAMED' )
-			
-		# no hex match
-		else:			
-			# same path
-			# same filename but diff root
-			# no path match
 
 	return dir_to_rm
  
