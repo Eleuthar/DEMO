@@ -52,12 +52,10 @@ def setup_log_path( log_path ):
 	# set a unique delimiter regardless of platform (Linux\Windows)
 	
 	# folder check
-	if not path.exists( log_path ):
-    
-		if '\\' in log_path:
-			log_path = log_path.replace( '\\', '/' )
-            
-		split_path = log_path.split( '/' )
+	if not path.exists( log_path ):    
+		
+		sep = '\\' if '\\' in log_path else '/'            
+		split_path = log_path.split( sep )
 		dir_name = split_path.pop()
 		upper_dirname = split_path[-1]
 		upper_dir = '/'.join( split_path )
@@ -135,6 +133,7 @@ def rename_it( logger, prop, fpath_on_cloud ):
     
 		if prop == client_hexmap[ 'hex' ][ z ]:	
 		
+        set_trace()
 		# extract the corresponding full path on client side	
 			new_fname = client_hexmap[ 'fname' ][ z ]			
 			new_root = client_hexmap[ 'root' ][ z ][ len( client ) : ]
@@ -150,6 +149,7 @@ def rename_it( logger, prop, fpath_on_cloud ):
 	
 def rm_obsolete_dir( root, logger ):	  
 	try:
+        set_trace()
 		rmdir( root )
 		log_it( logger, f"Deleted directory { root }\n" )		
 	except Exception as X:
