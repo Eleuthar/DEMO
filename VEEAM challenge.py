@@ -1,6 +1,6 @@
 from hashlib import md5
 from sys import argv
-from os import walk, listdir, path, mkdir, replace, remove, removedirs, rename
+from os import walk, listdir, path, mkdir, replace, remove, rmdir, rename
 from shutil import copytree, copy2
 from datetime import datetime
 from time import sleep
@@ -36,11 +36,11 @@ timeframe = {
 	"H" : 3600,
 	"D" : 86400
  }
-client = argv[1]
-cloud = argv[2]
+client = path.realpath(argv[1])
+cloud = path.realpath(argv[2])
 # interval translated into seconds
 interval = ( int( argv[3] ) * timeframe[ argv[4].upper( ) ] )
-log_path = argv[5]
+log_path = path.realpath(argv[5])
 client_hexmap = { }
 cloud_hexmap = { }
 
@@ -92,9 +92,10 @@ def log_it( logger, log_item, report=None, report_obj=None ):
     return
 
 
-def generate_file_hex( target, rootdir, filename, blocksize=8192 ):
+def generate_file_hex( root, filename, blocksize=8192 ):
+
 	hh = md5()
-	with open( path.join( target, rootdir, filename ) , "rb" ) as f:
+	with open( path.join( root, filename ) , "rb" ) as f:
 		while buff := f.read( blocksize ):
 			hh.update( buff )
 	return hh.hexdigest()
@@ -108,20 +109,22 @@ def generate_hexmap( target, logger ):
 		'fname': [], 
 		'hex': [],
 		'report': []
-	 }	
+	}
+	logger.write( f" {target} HEXMAP ".center (60, "-"))
+
 	for directory in walk( target ):
 	# ( 0=dirname, 1=[folders], 2=[files] )   
-		
+		# [ len( target ) : ]
 		# separate starting from basename	  
-		root = directory[0][ len( target ) : ]
-		
+		root = directory[0]
+		set_trace()
+
 		for fname in directory[2]:
 			hexmap[ 'root' ].append( root )
 			hexmap[ 'fname' ].append( fname )
-			hx = generate_file_hex( target, root, fname )
+			hx = generate_file_hex( root, fname )
 			hexmap[ 'hex' ].append( hx )
 			
-			logger.write( f" {target} HEXMAP ".center (60, "-"))
 			logger.write( root )
 			logger.write( fname )
 			logger.write( hx )
@@ -129,19 +132,19 @@ def generate_hexmap( target, logger ):
 	return hexmap
 
 
-def rename_it( logger, hexmap_report_index, prop, old_fname ):
+def rename_it( logger, hexmap_report_index, prop, fname, fpath_on_cloud ):
 
 	global client_hexmap, cloud
+
+	old_path = fpath_on_cloud
 
 	for z in range( len( client_hexmap[ 'hex' ] ) ):
 					
 		if prop == client_hexmap[ 'hex' ][ z ]:			
 		# extract the corresponding full path on client side	
 			new_fname = client_hexmap[ 'fname' ][ z ]			
-			new_root = client_hexmap[ 'root' ][ z ]
-
+			new_root = client_hexmap[ 'root' ][ z ][ len( client ) : ]
 			new_path = path.join( cloud, new_root, new_fname )
-			old_path = path.join( cloud, old_fname )
 			
 			try:
 				rename( new_path, old_path )
@@ -153,10 +156,10 @@ def rename_it( logger, hexmap_report_index, prop, old_fname ):
 			return
 
 	
-def rm_obsolete_dir( target, root, logger ):
+def rm_obsolete_dir( root, logger ):
 # action = RM ||  RENAME || PASS || UPDATE || CREATE	  
 	try:
-		removedirs( path.join( target, root ) )
+		rmdir( root )
 		log_it( logger, f"Deleted directory { root }\n" )
 		
 	except Exception as X:
@@ -182,50 +185,56 @@ def diff_hex( logger ):
 		dst_hex = cloud_hexmap[ 'hex' ][ j ]		
 		reporting_unit = cloud_hexmap[ 'report' ][ j ]
 
-		dst_f = path.join( dst_root, dst_fn )
-		path_on_client = path.join( client, dst_f )
-		path_on_cloud = path.join( cloud, dst_f )
+		fpath_on_cloud = path.join( dst_root, dst_fn )
+
+		# from the landing path point, the file path should be identical for both client & cloud
+		# extract with "[ len( cloud ) : ]" the part that cannot be used by target
+		# client = C:\Downloads\Pirated_MP3\<common root>
+		# cloud = C:\Backup\Pirated_Music\<common root>
+
+		common_root_fn = path.join( dst_root[ len( cloud ) : ], dst_fn )	
+		
+		expected_path_on_client = path.join( client, common_root_fn )
 
 		# same hex
 		if dst_hex in client_hexmap['hex']:
 			# same path > PASS
-			if path.exists( path_on_client ):
-				log_it( logger, f"PASS { dst_f }\n", reporting_unit,'PASS' )
+			if path.exists( expected_path_on_client ):
+				log_it( logger, f"PASS { fpath_on_cloud }\n", reporting_unit,'PASS' )
 				continue
 			# different filename || root || path > RENAME
 			else:				
-				rename_it( logger, reporting_unit, dst_hex, dst_f )
+				rename_it( logger, reporting_unit, dst_hex, dst_fn, fpath_on_cloud )
 			
 		# no hex match
 		else:
 			# same path > REPLACED
-			if path.exists( path_on_client ):
-				log_it( logger, f"UPDATING { dst_f }\n" )
-				try:
-					target = path.join( cloud, dst_f, )
-					remove( path.join( target ) )
-					copy2( path_on_client, target )
-					log_it( logger, f"UPDATED { dst_f }\n", reporting_unit,'UPDATED' )
+			if path.exists( expected_path_on_client ):
+				log_it( logger, f"UPDATING { fpath_on_cloud }\n" )
+				try:					
+					remove( fpath_on_cloud )
+					copy2( expected_path_on_client, fpath_on_cloud )
+					log_it( logger, f"UPDATED { fpath_on_cloud }\n", reporting_unit,'UPDATED' )
 					continue
 				except Exception as X:
 					log_it( logger,  f"Error: { X }\n" )
 			
 			# same filename but diff root > RENAME
-			elif not path.exists( path_on_client ) and dst_fn in client_hexmap['fname']:
-				rename_it( logger, reporting_unit, dst_root, dst_f )
+			elif not path.exists( expected_path_on_client ) and dst_fn in client_hexmap['fname']:
+				rename_it( logger, reporting_unit, dst_root, dst_fn, fpath_on_cloud )
 				
 			# no path match > DELETE
 			else:
 				try:
-					remove(path_on_cloud)
+					remove( fpath_on_cloud )
 				except Exception as X:
-					log_it( logger, f"DELETED {dst_f}\n", reporting_unit, 'DELETED')
+					log_it( logger, f"DELETED {fpath_on_cloud}\n", reporting_unit, 'DELETED')
 
 		if dst_root not in client_hexmap[ 'root' ]:
 			dir_to_rm.add( dst_root )
 
 	return dir_to_rm
- 
+
 
 def dump_to_cloud( logger ):
 
@@ -273,7 +282,7 @@ def one_way_sync( logger ):
 		# compare with cloud storage hexmap: root fname hex
 		obsolete_dirs = diff_hex( logger )
 		for obsolete_dir in obsolete_dirs:
-			rm_obsolete_dir( cloud, obsolete_dir, logger)
+			rm_obsolete_dir( obsolete_dir, logger)
 	
 	sync_finish = datetime.now()
 	
