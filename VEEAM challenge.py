@@ -153,7 +153,7 @@ def rename_it( logger, hexmap_report_index, prop, old_fname ):
 			return
 
 	
-def rm_empty_dir( target, root, logger ):
+def rm_obsolete_dir( target, root, logger ):
 # action = RM ||  RENAME || PASS || UPDATE || CREATE	  
 	try:
 		removedirs( path.join( target, root ) )
@@ -271,7 +271,9 @@ def one_way_sync( logger ):
 		# get the destination directory hash map
 		cloud_hexmap = generate_hexmap( cloud, logger )	
 		# compare with cloud storage hexmap: root fname hex
-		diff_hex( logger )
+		obsolete_dirs = diff_hex( logger )
+		for obsolete_dir in obsolete_dirs:
+			rm_obsolete_dir( cloud, obsolete_dir, logger)
 	
 	sync_finish = datetime.now()
 	
