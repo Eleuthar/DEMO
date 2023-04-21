@@ -111,6 +111,12 @@ def generate_hexmap( target, logger ):
 		# separate starting from basename	  
 		root = directory[0]		
         
+        # handle empty dir
+        if len( listdir( root ) ) == 0:
+            hexmap[ 'root' ].append( root )
+            heexmap[ 'fname' ].append( None )
+			hexmap[ 'hex' ].append( None )
+            
 		for fname in directory[2]:
 			hexmap[ 'root' ].append( root )
 			hexmap[ 'fname' ].append( fname )
@@ -137,6 +143,9 @@ def rename_it( logger, prop, fpath_on_cloud ):
 		# extract the corresponding full path on client side	
 			new_fname = client_hexmap[ 'fname' ][ z ]			
 			new_root = client_hexmap[ 'root' ][ z ][ len( client ) : ]
+            
+            new_root = new_root.removeprefix('\\') if '\\' in new_root else new_root.removeprefix('/')
+            
 			new_path = path.join( cloud, new_root, new_fname )	
             
 			try:
@@ -182,7 +191,9 @@ def diff_hex( logger ):
         # if path string starts or ends with '\' or '/' join will fail
         
 		common_root_fn = path.join( dst_root[ len( cloud ) : ], dst_fn )
+        
         common_root_fn = common_root_fn.removeprefix('\\') if '\\' in common_root_fn else common_root_fn.removeprefix('/')
+        
 		expected_path_on_client = path.join(client, common_root_fn)
         
 		# same hex
