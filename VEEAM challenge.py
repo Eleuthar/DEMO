@@ -1,3 +1,4 @@
+
 from hashlib import md5
 from sys import argv
 from os import walk, listdir, path, mkdir, replace, remove, rmdir, rename
@@ -161,12 +162,42 @@ def rename_it( logger, prop, fpath_on_cloud ):
             new_path = path.join( cloud, new_root, new_fname )    
             
             try:
+                log_it( logger, f"RENAMING {old_path} to {new_path}\n")
                 rename( new_path, old_path )
-                log_it( logger, f"Renamed {old_path} to {new_path}\n")
+                log_it( logger, f"RENAMED {old_path} to {new_path}\n")
+                
             except Exception as X:
                 log_it( logger, f"{X}\n" )
+                
             return
 
+
+def replace_it( logger, expected_path_on_client, fpath_on_cloud ):
+            
+    try:                    
+        log_it( logger, f"UPDATING { fpath_on_cloud }\n" )        
+        remove( fpath_on_cloud )        
+        copy2( expected_path_on_client, fpath_on_cloud )        
+        log_it( logger, f"UPDATED { fpath_on_cloud }\n" )
+        
+    except Exception as X:
+        log_it( logger,  f"Error: { X }\n" )
+      
+    return
+
+    
+def remove_it( logger, fpath_on_cloud ):
+
+    try:
+        print( f"DELETING {fpath_on_cloud}\n" )
+        remove( fpath_on_cloud )
+        log_it( logger, f"DELETED {fpath_on_cloud}\n")
+        
+    except Exception as X:
+        log_it( logger, X )
+    
+    return
+    
     
 def rm_obsolete_dir( root, logger ):      
     try:
@@ -224,56 +255,45 @@ def diff_hex( logger ):
         
         fpath_on_cloud = path.join( dst_root, dst_fn )
         
+        if dst_root not in client_hexmap[ 'root' ]:
+            dir_to_rm.add( dst_root )
+        
         # from the landing path point, the file path should be identical for both client & cloud
         # extract with "[ len( cloud ) : ]" the part that cannot be used by target
         # client = C:\Downloads\Pirated_MP3\<common root>
         # cloud = C:\Backup\Pirated_Music\<common root>
         # if path string starts or ends with '\' or '/' join will fail
         
-        common_root_fn = path.join( dst_root[ len( cloud ) : ], dst_fn )
-        
+        common_root_fn = path.join( dst_root[ len( cloud ) : ], dst_fn )        
         common_root_fn = common_root_fn.removeprefix('\\') if '\\' in common_root_fn else common_root_fn.removeprefix('/')
         
         expected_path_on_client = path.join(client, common_root_fn)
         
         # same hex
         if dst_hex in client_hexmap['hex']:
+        
             # same path > PASS
             if path.exists( expected_path_on_client ):
                 log_it( logger, f"PASS { fpath_on_cloud }\n" )
-                continue
+                
             # different filename || root || path > RENAME
             else:                
                 rename_it( logger, dst_hex, fpath_on_cloud )            
        
        # no hex match
         else:
+        
             # same path > REPLACED
             if path.exists( expected_path_on_client ):
-                log_it( logger, f"UPDATING { fpath_on_cloud }\n" )
-                try:                    
-                    remove( fpath_on_cloud )
-                    copy2( expected_path_on_client, fpath_on_cloud )
-                    log_it( logger, f"UPDATED { fpath_on_cloud }\n" )
-                    continue
-                except Exception as X:
-                    log_it( logger,  f"Error: { X }\n" )
-                    
+                replace_it( logger, expected_path_on_client, fpath_on_cloud )
+                                
             # same filename but diff root > RENAME
-            elif not path.exists( expected_path_on_client ) and dst_fn in client_hexmap['fname']:
-                print( f"RENAMING {fpath_on_cloud}\n" )
-                rename_it( logger, dst_root, fpath_on_cloud )                
-
+            elif not path.exists( expected_path_on_client ) and dst_fn in client_hexmap['fname']:                
+                rename_it( logger, dst_root, fpath_on_cloud )
+                
             # no path match > DELETE
             else:
-                try:
-                    print( f"DELETING {fpath_on_cloud}\n" )
-                    remove( fpath_on_cloud )
-                except Exception as X:
-                    log_it( logger, f"DELETED {fpath_on_cloud}\n")
-        
-        if dst_root not in client_hexmap[ 'root' ]:
-            dir_to_rm.add( dst_root )
+                remove_it( logger, fpath_on_cloud )          
             
     return dir_to_rm
 
