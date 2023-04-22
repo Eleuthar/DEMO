@@ -142,13 +142,10 @@ def generate_hexmap( target, logger ):
     return hexmap
 
 
-def extract_common_root( target, root ):
-            
-    common_root = root[ len( target ) : ]
-    
+def extract_common_root( target, root ):            
+    common_root = root[ len( target ) : ]    
     # remove beginning "\\" or "/"
-    common_root = common_root.removeprefix('\\') if '\\' in common_root else common_root.removeprefix('/')
-    
+    common_root = common_root.removeprefix('\\') if '\\' in common_root else common_root.removeprefix('/')    
     return common_root
    
 
@@ -168,13 +165,13 @@ def get_empty_root( logger ):
         expected_root_path_on_client = path.join( client, common_root )
         
         if not path.exists( expected_root_path_on_client ) and expected_root_path_on_client != client:
-           log_it(f"Added {mpty} to 
+           log_it(logger, f"Prepared for removal: {mpty}\n")
            dir_to_rm.add( mpty )
    
    return dir_to_rm
 
     
-def rm_obsolete_dir( root, logger ):      
+def rm_obsolete_dir( root, logger ):  
     
     global cloud
     
@@ -184,19 +181,27 @@ def rm_obsolete_dir( root, logger ):
         log_it( logger, f"Deleted directory { root }\n" )
         
         # parent directory can become empty and obsolete
-        removed_dir = os.path.basename( root ) 
+        removed_dir = os.path.basename( root )
+        
         upper_root = root[ : root.index( removed_dir ) ]
         
         # remove ending "\\" or "/"
         upper_root = upper_root[: -1]
         
-        expected_path_on_client = path.join( client, upper_root )
+        upper_root_common_path = extract_common_root( cloud, upper_root )
+        
+        # path has reached sync target base root
+        if upper_root_common_path == '':            
+            return
+            
+        expected_path_on_client = path.join( client, upper_root_common_path )
         
         if not path.exists( expected_path_on_client ):
-            rm_obsolete_dir( expected_path_on_client, logger )
+            rm_obsolete_dir( upper_root, logger )
         
     except Exception as X:
-        log_it( logger, f"Error: { X }\n" )    
+        log_it( logger, f"Error: { X }\n" ) 
+        
     return
 
 
