@@ -176,20 +176,18 @@ def diff_hex( logger ):
     global client, cloud, client_hexmap, cloud_hexmap        
     dir_to_rm = set( )
         
+        
     # compare cloud against client
     for mpty in empty_root:
-        
-        mpty_index = empty_root.index( mpty )
-        
+    
         # remove cloud part from path        
         common_root = mpty[ len( cloud ) : ].removeprefix('\\') if '\\' in common_root else common_root.removeprefix('/')
         
         # add the client part for expected path
         expected_root_path_on_client = path.join( client, common_root )
-        if expected_root_path_on_client.exists( expected_root_path_on_client ):
-           del empty_root[ mpty_index ]
-        else:
-            dir_to_rm.add( empty_root[ mpty_index ] )
+        
+        if not expected_root_path_on_client.exists( expected_root_path_on_client ):
+           dir_to_rm.add( mpty )
         
     
     for hx_tgt in reversed( cloud_hexmap['hex'] ):
