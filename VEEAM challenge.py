@@ -111,7 +111,7 @@ def generate_hexmap( target, logger ):
 
     global empty_root 
     
-    hexmap = { 
+    hexmap = {
         'root': [],
         'fname': [], 
         'hex': []
@@ -137,8 +137,63 @@ def generate_hexmap( target, logger ):
             logger.write( root )
             logger.write( fname )
             logger.write( hx )
-            logger.write(f"\n\n{60*'-'}\n\n")            
+            logger.write(f"\n\n{60*'-'}\n\n")
+            
     return hexmap
+
+
+def extract_common_root( target, root ):
+            
+    common_root = root[ len( target ) : ]
+    
+    common_root = common_root = common_root.removeprefix('\\') if '\\' in common_root else common_root.removeprefix('/')
+    
+    return common_root
+   
+
+def get_empty_root( logger ):
+# compare cloud directories against client
+
+    global empty_root
+
+    dir_to_rm = set( )
+    
+    for mpty in empty_root:
+    
+        # remove cloud part from path
+        common_root = extract_common_root( cloud, mpty )        
+        
+        # add the client part for expected path
+        expected_root_path_on_client = path.join( client, common_root )
+        
+        if not path.exists( expected_root_path_on_client ) and expected_root_path_on_client != client:
+           log_it(f"Added {mpty} to 
+           dir_to_rm.add( mpty )
+   
+   return dir_to_rm
+   
+    
+def rm_obsolete_dir( root, logger ):      
+    set_trace()
+    try:        
+        log_it( logger, f"Deleting directory { root }\n" )
+        rmdir( root )
+        log_it( logger, f"Deleted directory { root }\n" )
+        
+        # parent directory can become empty and obsolete
+        removed_dir = os.path.basename( root ) 
+        upper_dir = root[ : removed_dir ]
+        
+        upper_dir_common_path = upper_dir[ len( client ) : ].removeprefix(' \\ ') if '\\' in upper_dir else upper_dir.removeprefix('/')
+        
+        expected_path_on_client = path.join( client, upper_dir_common_path )
+        
+        if not path.exists( expected_path_on_client ):
+            rm_obsolete_dir( expected_path_on_client, logger )
+        
+    except Exception as X:
+        log_it( logger, f"Error: { X }\n" )    
+    return
 
 
 def rename_it( logger, prop, fpath_on_cloud ):
@@ -172,8 +227,8 @@ def rename_it( logger, prop, fpath_on_cloud ):
 
 
 def replace_it( logger, expected_path_on_client, fpath_on_cloud ):
-            
-    try:                    
+    set_trace()
+    try:
         log_it( logger, f"UPDATING { fpath_on_cloud }\n" )        
         remove( fpath_on_cloud )        
         copy2( expected_path_on_client, fpath_on_cloud )        
@@ -186,7 +241,7 @@ def replace_it( logger, expected_path_on_client, fpath_on_cloud ):
 
     
 def remove_it( logger, fpath_on_cloud ):
-
+    set_trace()
     try:
         print( f"DELETING {fpath_on_cloud}\n" )
         remove( fpath_on_cloud )
@@ -196,54 +251,17 @@ def remove_it( logger, fpath_on_cloud ):
         log_it( logger, X )
     
     return
-    
-    
-def rm_obsolete_dir( root, logger ):      
-    try:
-        set_trace()
-        log_it( logger, f"Deleting directory { root }\n" )
-        rmdir( root )
-        log_it( logger, f"Deleted directory { root }\n" )
-        
-        # parent directory can become empty and obsolete
-        removed_dir = os.path.basename( root ) 
-        upper_dir = root[ : removed_dir ]
-        
-        upper_dir_common_path = upper_dir[ len( client ) : ].removeprefix(' \\ ') if '\\' in upper_dir else upper_dir.removeprefix('/')
-        
-        expected_path_on_client = path.join( client, upper_dir_common_path )
-        
-        if not path.exists( expected_path_on_client ):
-            rm_obsolete_dir( expected_path_on_client, logger )
-        
-    except Exception as X:
-        log_it( logger, f"Error: { X }\n" )    
-    return
-        
-
+   
+  
 def diff_hex( logger ):
     # start from the client deepest root    
     # if root not in cloud ['root'], review content recursively to remove\move\keep\update, then add to set for final cleanup
     
-    global client, cloud, client_hexmap, cloud_hexmap        
-    dir_to_rm = set( )
-
-    set_trace( )
-        
-    # compare cloud against client
-    for mpty in empty_root:
+    global client, cloud, client_hexmap, cloud_hexmap, empty_root
     
-        # remove cloud part from path        
-        common_root = mpty[ len( cloud ) : ]
-        common_root = common_root.removeprefix('\\') if '\\' in common_root else common_root.removeprefix('/')
-        
-        # add the client part for expected path
-        expected_root_path_on_client = path.join( client, common_root )
-        
-        if not path.exists( expected_root_path_on_client ) and expected_root_path_on_client != client:
-           dir_to_rm.add( mpty )
-        
+    dir_to_rm = get_empty_root( logger )
     
+    set_trace( )    
     for hx_tgt in reversed( cloud_hexmap['hex'] ):
     
         index = cloud_hexmap['hex'].index( hx_tgt )
@@ -254,7 +272,9 @@ def diff_hex( logger ):
         
         fpath_on_cloud = path.join( dst_root, dst_fn )
         
-        if dst_root not in client_hexmap[ 'root' ]:
+        common_root = extract_common_root( cloud, dst_root )
+        
+        if common_root not in client_hexmap[ 'root' ]:
             dir_to_rm.add( dst_root )
         
         # from the landing path point, the file path should be identical for both client & cloud
@@ -263,8 +283,7 @@ def diff_hex( logger ):
         # cloud = C:\Backup\Pirated_Music\<common root>
         # if path string starts or ends with '\' or '/' join will fail
         
-        common_root_fn = path.join( dst_root[ len( cloud ) : ], dst_fn )        
-        common_root_fn = common_root_fn.removeprefix('\\') if '\\' in common_root_fn else common_root_fn.removeprefix('/')
+        common_root_fn = path.join( common_root, dst_fn )
         
         expected_path_on_client = path.join(client, common_root_fn)
         
