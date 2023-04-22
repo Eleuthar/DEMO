@@ -165,19 +165,16 @@ def extract_common_root( target, root ):
 
 def mk_upper_dircloud( root, logger ):
 # mirror client directories
-    global cloud
-    
-    upper = extract_upper_root( root )
-    
+    global cloud    
+    upper = extract_upper_root( root )    
     while upper != cloud:        
         while not path.exists( upper ):
             try:
                 mkdir( upper )
                 log_it( logger, f"CREATED DIR: {upper}\n" )
-                return
-            
+                return            
             except Exception as X:
-                log_it( logger, X )
+                log_it( logger, f"{X}\n\nAttempting to create the upper directory\n\n")
                 mk_upper_dircloud( upper, logger )
         else:                    
             return
@@ -426,8 +423,7 @@ def selective_dump_to_cloud( logger ):
             
             # target path can be too deep or is not created
             if not path.exists( dirpath_on_cloud ):
-                mk_upper_dircloud( dirpath_on_cloud, logger )
-                
+            
                 try:
                     log_it( logger, f"CREATING {dirpath_on_cloud}\n" )
                     mkdir( dirpath_on_cloud )
@@ -438,8 +434,9 @@ def selective_dump_to_cloud( logger ):
                     log_it( logger, "DONE\n" )
                     client_hexmap[ 'flag' ][ q ] = 'Z'
                 
-                except Exception as X:
-                    log_it( logger, X )
+                except Exception:
+                    log_it( logger, f"{X}\n\nAttempting to create the upper directory\n\n")
+                    mk_upper_dircloud( dirpath_on_cloud, logger )
     return
     
 
