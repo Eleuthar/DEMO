@@ -144,9 +144,10 @@ def generate_hexmap( target, logger ):
 
 def extract_common_root( target, root ):
             
-    common_root = root[ len( target ) : ]
+    common_root = root[ len( target ) : -1 ]
     
-    common_root = common_root = common_root.removeprefix('\\') if '\\' in common_root else common_root.removeprefix('/')
+    # remove beginning "\\" or "/"
+    common_root = common_root.removeprefix('\\') if '\\' in common_root else common_root.removeprefix('/')
     
     return common_root
    
@@ -171,10 +172,12 @@ def get_empty_root( logger ):
            dir_to_rm.add( mpty )
    
    return dir_to_rm
-   
+
     
 def rm_obsolete_dir( root, logger ):      
-    set_trace()
+    
+    global cloud
+    
     try:        
         log_it( logger, f"Deleting directory { root }\n" )
         rmdir( root )
@@ -182,11 +185,12 @@ def rm_obsolete_dir( root, logger ):
         
         # parent directory can become empty and obsolete
         removed_dir = os.path.basename( root ) 
-        upper_dir = root[ : removed_dir ]
+        upper_root = root[ : root.index( removed_dir ) ]
         
-        upper_dir_common_path = upper_dir[ len( client ) : ].removeprefix(' \\ ') if '\\' in upper_dir else upper_dir.removeprefix('/')
+        # remove ending "\\" or "/"
+        upper_root = upper_root[: -1]
         
-        expected_path_on_client = path.join( client, upper_dir_common_path )
+        expected_path_on_client = path.join( client, upper_root )
         
         if not path.exists( expected_path_on_client ):
             rm_obsolete_dir( expected_path_on_client, logger )
@@ -206,7 +210,6 @@ def rename_it( logger, prop, fpath_on_cloud ):
     
         if prop == client_hexmap[ 'hex' ][ z ]:    
         
-            set_trace()
             # extract the corresponding full path on client side    
             new_fname = client_hexmap[ 'fname' ][ z ]            
             new_root = client_hexmap[ 'root' ][ z ][ len( client ) : ]
@@ -227,7 +230,7 @@ def rename_it( logger, prop, fpath_on_cloud ):
 
 
 def replace_it( logger, expected_path_on_client, fpath_on_cloud ):
-    set_trace()
+    
     try:
         log_it( logger, f"UPDATING { fpath_on_cloud }\n" )        
         remove( fpath_on_cloud )        
@@ -241,7 +244,7 @@ def replace_it( logger, expected_path_on_client, fpath_on_cloud ):
 
     
 def remove_it( logger, fpath_on_cloud ):
-    set_trace()
+
     try:
         print( f"DELETING {fpath_on_cloud}\n" )
         remove( fpath_on_cloud )
@@ -260,8 +263,7 @@ def diff_hex( logger ):
     global client, cloud, client_hexmap, cloud_hexmap, empty_root
     
     dir_to_rm = get_empty_root( logger )
-    
-    set_trace( )    
+     
     for hx_tgt in reversed( cloud_hexmap['hex'] ):
     
         index = cloud_hexmap['hex'].index( hx_tgt )
