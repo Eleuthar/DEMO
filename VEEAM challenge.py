@@ -153,26 +153,28 @@ def extract_common_root( target, root ):
     return common_root
    
 
-def get_empty_root( logger ):
+def get_removable_dir( empty_root, logger ):
 # compare cloud directories against client
 
-    global empty_root
+    global cloud
 
-    dir_to_rm = set( )
+    removable_dir = set( )
     
-    for mpty in empty_root[ 'cloud' ]:
-    
-        # remove cloud part from path
-        common_root = extract_common_root( cloud, mpty )        
+    if len( empty_root[ 'cloud' ] ) != 0:
+        for mpty in empty_root[ 'cloud' ]:
         
-        # add the client part for expected path
-        expected_root_path_on_client = path.join( client, common_root )
-        
-        if not path.exists( expected_root_path_on_client ) and expected_root_path_on_client != client:
-           log_it(logger, f"Prepared for removal: {mpty}\n")
-           dir_to_rm.add( mpty )
+            # remove cloud part from path
+            common_root = extract_common_root( cloud, mpty )        
+            
+            # add the client part for expected path
+            expected_root_path_on_client = path.join( client, common_root )
+            
+            if not path.exists( expected_root_path_on_client ) and expected_root_path_on_client != client:
+            
+               log_it(logger, f"Prepared for removal: {mpty}\n")
+               removable_dir.add( mpty )
    
-   return dir_to_rm
+    return removable_dir
 
     
 def rm_obsolete_dir( root, logger ):  
@@ -292,7 +294,7 @@ def diff_hex( logger ):
     
     global client, cloud, client_hexmap, cloud_hexmap, empty_root
     
-    dir_to_rm = get_empty_root( logger )
+    dir_to_rm = get_removable_dir( logger )
     
     # cloud-side cleanup
     for hx_tgt in reversed( cloud_hexmap['hex'] ):
@@ -307,6 +309,7 @@ def diff_hex( logger ):
         
         common_root = extract_common_root( cloud, dst_root )
         
+        # enrich list of empty removable root with ones not existing on client-side
         if common_root not in client_hexmap[ 'root' ]:
             dir_to_rm.add( dst_root )
         
