@@ -144,7 +144,7 @@ def generate_hexmap( target, logger ):
 
 def extract_common_root( target, root ):
             
-    common_root = root[ len( target ) : -1 ]
+    common_root = root[ len( target ) : ]
     
     # remove beginning "\\" or "/"
     common_root = common_root.removeprefix('\\') if '\\' in common_root else common_root.removeprefix('/')
