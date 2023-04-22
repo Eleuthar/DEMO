@@ -17,7 +17,7 @@ __doc__ = '''
     D = DAYS
     
     Example for synchronizing every 5 minutes with absolute path:   
-    $ python dir_sync.py "C:\\Users\\MrRobot\\Documents\\Homework\\" "C:\\Users\\MrRobot\\Downloads\\VEEAM_CLOUD\\Homework\\" 5 M "C:\\Program Files\\VEEAM\\logs\\"
+    $ python dir_sync.py "C:\\Users\\MrRobot\\Documents\\Homework" "C:\\Users\\MrRobot\\Downloads\\VEEAM_CLOUD\\Homework" 5 M "C:\\Program Files\\VEEAM\\logs"
     
     Example for synchronizing every 5 seconds with relative path:
     $ python ..\\INFOSEC .\\INFOSEC 5 S .\\logz
@@ -36,11 +36,16 @@ timeframe = {
     "H" : 3600,
     "D" : 86400
  }
-client = path.realpath(argv[1])
-cloud = path.realpath(argv[2])
+ 
+ 
+client = path.realpath( argv[1] )
+cloud = path.realpath( argv[2] )
+log_path = path.realpath( argv[5] )
+
+
 # interval translated into seconds
 interval = ( int( argv[3] ) * timeframe[ argv[4].upper( ) ] )
-log_path = path.realpath(argv[5])
+
 client_hexmap = { }
 cloud_hexmap = { }
 empty_root = set( )
@@ -49,19 +54,22 @@ empty_root = set( )
 def setup_log_path( log_path ):
 # implemented log path validation since user interpretation can be ambiguous: either provide a directory to be created or use an existing one.
     
-    print( f'Validating log directory: "{ log_path }"\n' )    
-    # set a unique delimiter regardless of platform (Linux\Windows)
-    
+    print( f'Validating log directory: "{ log_path }"\n' )
+
+    # user input can end with < \\" > which will add " to the path, invalidating it
+    log_path = log_path[:-1] if '"' in log_path else log_path    
+   
     # folder check
     if not path.exists( log_path ):    
         
+        # set a unique delimiter regardless of platform (Linux\Windows)
         sep = '\\' if '\\' in log_path else '/'            
+        
         split_path = log_path.split( sep )
         dir_name = split_path.pop()
-        upper_dirname = split_path[-1]
         upper_dir = '/'.join( split_path )
         
-        print( f'Directory "{ dir_name }" does not exist. Will create it if upper directory "{ upper_dirname }" is valid.\n' )
+        print( f'Directory "{ dir_name }" does not exist. Will create it if upper directory "{ upper_dir }" is valid.\n' )
         # upper folder check
         
         if not path.exists( upper_dir ):                
@@ -72,6 +80,7 @@ def setup_log_path( log_path ):
             mkdir( log_path )
             return True      
     else:
+        log_path = path.join ( log_path, "dirSync logs" )
         print( f"Saving logs in { log_path }\n" )
         return True
 
@@ -128,7 +137,7 @@ def generate_hexmap( target, logger ):
             logger.write( root )
             logger.write( fname )
             logger.write( hx )
-            logger.write("\n\n{60*'-'}\n\n")            
+            logger.write(f"\n\n{60*'-'}\n\n")            
     return hexmap
 
 
@@ -142,7 +151,7 @@ def rename_it( logger, prop, fpath_on_cloud ):
     
         if prop == client_hexmap[ 'hex' ][ z ]:    
         
-           # set_trace()
+            set_trace()
             # extract the corresponding full path on client side    
             new_fname = client_hexmap[ 'fname' ][ z ]            
             new_root = client_hexmap[ 'root' ][ z ][ len( client ) : ]
@@ -161,9 +170,22 @@ def rename_it( logger, prop, fpath_on_cloud ):
     
 def rm_obsolete_dir( root, logger ):      
     try:
-        #set_trace()        
+        set_trace()
+        log_it( logger, f"Deleting directory { root }\n" )
         rmdir( root )
-        log_it( logger, f"Deleted directory { root }\n" )        
+        log_it( logger, f"Deleted directory { root }\n" )
+        
+        # parent directory can become empty and obsolete
+        removed_dir = os.path.basename( root ) 
+        upper_dir = root[ : removed_dir ]
+        
+        upper_dir_common_path = upper_dir[ len( client ) : ].removeprefix(' \\ ') if '\\' in upper_dir else upper_dir.removeprefix('/')
+        
+        expected_path_on_client = path.join( client, upper_dir_common_path )
+        
+        if not path.exists( expected_path_on_client ):
+            rm_obsolete_dir( expected_path_on_client, logger )
+        
     except Exception as X:
         log_it( logger, f"Error: { X }\n" )    
     return
@@ -175,18 +197,20 @@ def diff_hex( logger ):
     
     global client, cloud, client_hexmap, cloud_hexmap        
     dir_to_rm = set( )
-        
+
+    set_trace( )
         
     # compare cloud against client
     for mpty in empty_root:
     
         # remove cloud part from path        
-        common_root = mpty[ len( cloud ) : ].removeprefix('\\') if '\\' in common_root else common_root.removeprefix('/')
+        common_root = mpty[ len( cloud ) : ]
+        common_root = common_root.removeprefix('\\') if '\\' in common_root else common_root.removeprefix('/')
         
         # add the client part for expected path
         expected_root_path_on_client = path.join( client, common_root )
         
-        if not expected_root_path_on_client.exists( expected_root_path_on_client ):
+        if not path.exists( expected_root_path_on_client ) and expected_root_path_on_client != client:
            dir_to_rm.add( mpty )
         
     
@@ -198,7 +222,6 @@ def diff_hex( logger ):
         dst_fn = cloud_hexmap[ 'fname' ][ index ] 
         dst_hex = cloud_hexmap[ 'hex' ][ index ]
         
-        set_trace()
         fpath_on_cloud = path.join( dst_root, dst_fn )
         
         # from the landing path point, the file path should be identical for both client & cloud
@@ -222,7 +245,8 @@ def diff_hex( logger ):
             # different filename || root || path > RENAME
             else:                
                 rename_it( logger, dst_hex, fpath_on_cloud )            
-        # no hex match
+       
+       # no hex match
         else:
             # same path > REPLACED
             if path.exists( expected_path_on_client ):
@@ -233,13 +257,17 @@ def diff_hex( logger ):
                     log_it( logger, f"UPDATED { fpath_on_cloud }\n" )
                     continue
                 except Exception as X:
-                    log_it( logger,  f"Error: { X }\n" )            
+                    log_it( logger,  f"Error: { X }\n" )
+                    
             # same filename but diff root > RENAME
             elif not path.exists( expected_path_on_client ) and dst_fn in client_hexmap['fname']:
+                print( f"RENAMING {fpath_on_cloud}\n" )
                 rename_it( logger, dst_root, fpath_on_cloud )                
+
             # no path match > DELETE
             else:
                 try:
+                    print( f"DELETING {fpath_on_cloud}\n" )
                     remove( fpath_on_cloud )
                 except Exception as X:
                     log_it( logger, f"DELETED {fpath_on_cloud}\n")
