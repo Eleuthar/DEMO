@@ -146,13 +146,43 @@ def generate_hexmap( target, logger ):
     return hexmap
 
 
-def extract_common_root( target, root ):            
+def extract_upper_root( root ):
+    removed_dir = os.path.basename( root )        
+    upper_root = root[ : root.index( removed_dir ) ]
+    # remove ending "\\" or "/"
+    upper_root = upper_root[: -1]    
+    return upper_root
+    
+
+def extract_common_root( target, root ):
+           
     common_root = root[ len( target ) : ]    
+
     # remove beginning "\\" or "/"
     common_root = common_root.removeprefix('\\') if '\\' in common_root else common_root.removeprefix('/')    
     return common_root
-   
 
+
+def mk_upper_dircloud( root, logger ):
+# mirror client directories
+    global cloud
+    
+    upper = extract_upper_root( root )
+    
+    while upper != cloud:        
+        while not path.exists( upper ):
+            try:
+                mkdir( upper )
+                log_it( logger, f"CREATED DIR: {upper}\n" )
+                return
+            
+            except Exception as X:
+                log_it( logger, X )
+                mk_upper_dircloud( upper, logger )
+        else:                    
+            return
+
+   
 def get_removable_dir( empty_root, logger ):
 # compare cloud directories against client
 
@@ -186,17 +216,11 @@ def rm_obsolete_dir( root, logger ):
         rmdir( root )
         log_it( logger, f"Deleted directory { root }\n" )
         
-        # parent directory can become empty and obsolete
-        removed_dir = os.path.basename( root )
-        
-        upper_root = root[ : root.index( removed_dir ) ]
-        
-        # remove ending "\\" or "/"
-        upper_root = upper_root[: -1]
-        
+        # parent directory can become empty and obsolete               
+        upper_root = extract_upper_root( root )        
         upper_root_common_path = extract_common_root( cloud, upper_root )
         
-        # path has reached sync target base root
+        # path has reached sync target base root        
         if upper_root_common_path == '':            
             return
             
@@ -294,7 +318,7 @@ def diff_hex( logger ):
     
     global client, cloud, client_hexmap, cloud_hexmap, empty_root
     
-    dir_to_rm = get_removable_dir( logger )
+    dir_to_rm = get_removable_dir( empty_root, logger )
     
     # cloud-side cleanup
     for hx_tgt in reversed( cloud_hexmap['hex'] ):
@@ -354,6 +378,7 @@ def diff_hex( logger ):
             else:
                 remove_it( logger, fpath_on_cloud )          
             
+    # hexmap > empty_root['cloud'] > removable_dir set() > dir_to_rm > obsolete_dirs
     return dir_to_rm
 
 
@@ -387,8 +412,36 @@ def selective_dump_to_cloud( logger ):
     
     global client_hexmap, cloud
     
-    for hexx in client_hexmap['hex']:
-
+    for q in range( len( client_hexmap[ 'hex ' ] ) ):
+        
+        # unhandled files are not flagged
+        if client_hexmap[ 'flag' ][ q ] == None:
+            
+            # validate common_root on cloud
+            common_root = extract_common_root( client, [client_hexmap[ 'root '][ q ] )            
+            client_file = client_hexmap[ 'fname' ][ q ]             
+            fpath_on_client = path.join( client, common_root, client_file )            
+            dirpath_on_cloud = path.join( cloud, common_root )            
+            fpath_on_cloud = path.join( dirpath_on_cloud, client_file )
+            
+            # target path can be too deep or is not created
+            if not path.exists( dirpath_on_cloud ):
+                mk_upper_dircloud( dirpath_on_cloud, logger )
+                
+                try:
+                    log_it( logger, f"CREATING {dirpath_on_cloud}\n" )
+                    mkdir( dirpath_on_cloud )
+                    
+                    log_it( logger, f"ADDING {fpath_on_cloud} from {fpath_on_client}\n" )
+                    copy2( fpath_on_client, fpath_on_cloud )
+                    
+                    log_it( logger, "DONE\n" )
+                    client_hexmap[ 'flag' ][ q ] = 'Z'
+                
+                except Exception as X:
+                    log_it( logger, X )
+    return
+    
 
 def one_way_sync( logger ):
 # triggered by main if hexmap diff
