@@ -127,6 +127,7 @@ def generate_hexmap( target, logger ):
         
         root = directory[0]
         
+        # get a full list of all folders empty or not
         if len( directory[1] ) != 0:
             for folder in directory[1]:
                 tree[ target ].add( path.join( root, folder ) )
@@ -187,18 +188,18 @@ def get_removable_dir( tree, logger ):
     removable_dir = set( )
     
     if len( tree[ 'cloud' ] ) != 0:
-        for mpty in tree[ 'cloud' ]:
+        for folder in tree[ 'cloud' ]:
         
             # remove cloud part from path
-            common_root = extract_common_root( cloud, mpty )        
+            common_root = extract_common_root( cloud, folder )        
             
             # add the client part for expected path
             expected_root_path_on_client = path.join( client, common_root )
             
             if not path.exists( expected_root_path_on_client ) and expected_root_path_on_client != client:
             
-               log_it(logger, f"Prepared for removal: {mpty}\n")
-               removable_dir.add( mpty )
+               log_it(logger, f"Prepared for removal: {folder}\n")
+               removable_dir.add( folder )
    
     return removable_dir
 
@@ -269,7 +270,7 @@ def replace_it( logger, expected_path_on_client, fpath_on_cloud ):
         log_it( logger, f"UPDATED { fpath_on_cloud }\n" )
         
     except Exception as X:
-        log_it( logger,  f"Error: { X }\n" )
+        log_it( logger,  f"{ X }\n" )
       
     return
 
@@ -461,7 +462,7 @@ def one_way_sync( logger ):
         # get the destination directory hash map
         cloud_hexmap = generate_hexmap( cloud, logger )
         
-        # mirror source dir tree
+        # mirror source dir tree in descending order
         for client_dir in tree[' client ']:
             if client_dir not in cloud_hexmap[ 'root ']:
                 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
