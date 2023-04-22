@@ -1,4 +1,3 @@
-
 from hashlib import md5
 from sys import argv
 from os import walk, listdir, path, mkdir, replace, remove, rmdir, rename
@@ -276,7 +275,7 @@ def diff_hex( logger ):
             if path.exists( expected_path_on_client ):
                 log_it( logger, f"PASS { fpath_on_cloud }\n" )
                 
-            # different filename || root || path > RENAME
+            # different path > RENAME
             else:                
                 rename_it( logger, dst_hex, fpath_on_cloud )            
        
@@ -287,7 +286,7 @@ def diff_hex( logger ):
             if path.exists( expected_path_on_client ):
                 replace_it( logger, expected_path_on_client, fpath_on_cloud )
                                 
-            # same filename but diff root > RENAME
+            # same filename but different root > RENAME
             elif not path.exists( expected_path_on_client ) and dst_fn in client_hexmap['fname']:                
                 rename_it( logger, dst_root, fpath_on_cloud )
                 
