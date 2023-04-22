@@ -46,9 +46,9 @@ interval = ( int( argv[3] ) * timeframe[ argv[4].upper( ) ] )
 
 client_hexmap = { }
 cloud_hexmap = { }
-empty_root = {}
-empty_root[ 'client' ] = set( )
-empty_root[ 'cloud '] = set( )
+tree = {}
+tree[ 'client' ] = set( )
+tree[ 'cloud '] = set( )
 
     
 def setup_log_path( log_path ):
@@ -93,7 +93,7 @@ def new_log_file( log_path, ymd_now ):
     return log_file
 
 
-def log_it( logger, log_item ):    
+def log_it( logger, log_item ):
     print( log_item )
     logger.write( log_item )    
     return
@@ -109,7 +109,7 @@ def generate_file_hex( root, filename, blocksize=8192 ):
 
 def generate_hexmap( target, logger ):
 
-    global empty_root
+    global tree
     
     # hexmap flag initalized with None, later marked with "Z"
     # used only for client during diff_hex
@@ -123,14 +123,13 @@ def generate_hexmap( target, logger ):
     logger.write( f" {target} HEXMAP ".center (60, "-"))
     
     for directory in walk( target ):
-    # ( 0=dirname, 1=[folders], 2=[files] )   
-        # [ len( target ) : ]
-        # separate starting from basename      
-        root = directory[0]        
+    # ( 0=dirname, 1=[folder basenames], 2=[files] )   
         
-        # handle empty dir
-        if len( listdir( root ) ) == 0:
-            empty_root[ target ].add( root )
+        root = directory[0]
+        
+        if len( directory[1] ) != 0:
+            for folder in directory[1]:
+                tree[ target ].add( path.join( root, folder ) )
             
         for fname in directory[2]:
             hexmap[ 'root' ].append( root )
@@ -165,7 +164,7 @@ def extract_common_root( target, root ):
 
 def mk_upper_dircloud( root, logger ):
 # mirror client directories
-    global cloud    
+    global cloud  
     upper = extract_upper_root( root )    
     while upper != cloud:        
         while not path.exists( upper ):
@@ -180,15 +179,15 @@ def mk_upper_dircloud( root, logger ):
             return
 
    
-def get_removable_dir( empty_root, logger ):
+def get_removable_dir( tree, logger ):
 # compare cloud directories against client
 
     global cloud
 
     removable_dir = set( )
     
-    if len( empty_root[ 'cloud' ] ) != 0:
-        for mpty in empty_root[ 'cloud' ]:
+    if len( tree[ 'cloud' ] ) != 0:
+        for mpty in tree[ 'cloud' ]:
         
             # remove cloud part from path
             common_root = extract_common_root( cloud, mpty )        
@@ -313,9 +312,9 @@ def diff_hex( logger ):
     # start from the client deepest root    
     # if root not in cloud ['root'], review content recursively to remove\move\keep\update, then add to set for final cleanup
     
-    global client, cloud, client_hexmap, cloud_hexmap, empty_root
+    global client, cloud, client_hexmap, cloud_hexmap, tree
     
-    dir_to_rm = get_removable_dir( empty_root, logger )
+    dir_to_rm = get_removable_dir( tree, logger )
     
     # cloud-side cleanup
     for hx_tgt in reversed( cloud_hexmap['hex'] ):
@@ -375,7 +374,7 @@ def diff_hex( logger ):
             else:
                 remove_it( logger, fpath_on_cloud )          
             
-    # hexmap > empty_root['cloud'] > removable_dir set() > dir_to_rm > obsolete_dirs
+    # hexmap > tree['cloud'] > removable_dir set() > dir_to_rm > obsolete_dirs
     return dir_to_rm
 
 
@@ -437,13 +436,14 @@ def selective_dump_to_cloud( logger ):
                 except Exception:
                     log_it( logger, f"{X}\n\nAttempting to create the upper directory\n\n")
                     mk_upper_dircloud( dirpath_on_cloud, logger )
+                    
     return
     
 
 def one_way_sync( logger ):
 # triggered by main if hexmap diff
     
-    global client, cloud, client_hexmap, cloud_hexmap
+    global client, cloud, client_hexmap, cloud_hexmap, tree
     
     sync_start = datetime.now()
      
@@ -459,7 +459,12 @@ def one_way_sync( logger ):
         
     else:
         # get the destination directory hash map
-        cloud_hexmap = generate_hexmap( cloud, logger )    
+        cloud_hexmap = generate_hexmap( cloud, logger )
+        
+        # mirror source dir tree
+        for client_dir in tree[' client ']:
+            if client_dir not in cloud_hexmap[ 'root ']:
+                <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         
         # cleanup on cloud storage
         obsolete_dirs = diff_hex( logger )
