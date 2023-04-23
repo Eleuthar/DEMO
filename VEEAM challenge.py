@@ -332,7 +332,7 @@ def diff_hex( logger ):
         common_root_fn = path.join( dst_root, dst_fn )
         fpath_on_cloud = path.join( cloud, common_root_fn )               
         )
-        expected_path_on_client = path.join(client, common_root_fn)
+        expected_path_on_client = path.join( client, common_root_fn )
         
         # same hex
         if dst_hex in client_hexmap['hex']:
@@ -350,20 +350,21 @@ def diff_hex( logger ):
         else:
         
             # same path > REPLACE
-            if path.exists( expected_path_on_client ):
+            if path.exists( expected_path_on_client ) and path.exists( fpath_on_cloud ):
             
-                flag_hexxed( (dst_root, dst_fn), action='REPLACE' )
+                flag_hexxed( ( dst_root, dst_fn ), action = 'REPLACE' )
                 replace_it( logger, expected_path_on_client, fpath_on_cloud )
 
-            # same filename but different root > RENAME
-            elif not path.exists( expected_path_on_client ) and dst_fn in client_hexmap['fname'] and client_hexmap['fname'].count( dst_fn ) == 1:
+            # same unique filename but different root > RENAME
+            elif not path.exists( expected_path_on_client ) and path.exists( fpath_on_cloud ) and dst_root not in client_hexmap[ 'root' ] and dst_fn in client_hexmap[ 'fname' ] and client_hexmap[ 'fname' ].count( dst_fn ) == 1:
             
-                flag_hexxed( dst_fn, action='RENAME' )            
+                flag_hexxed( dst_fn, action = 'RENAME' )           
                 rename_it( logger, dst_root, fpath_on_cloud )
                 
             # no path match > DELETE
-            else:
-                remove_it( logger, fpath_on_cloud )          
+            elif path.exists( fpath_on_cloud ) and not path.exists( expected_path_on_client ) and dst_root not in client_hexmap[ 'root' ] and dst_fn not in client_hexmap[ 'fname' ]:
+            
+                remove_it( logger, fpath_on_cloud )
             
     # hexmap > tree[ cloud ] > removable_dir set() > dir_to_rm > obsolete_dirs
     return dir_to_rm
