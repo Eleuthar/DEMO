@@ -11,16 +11,20 @@ from pdb import set_trace
 
 __doc__ = '''
     Usage: python dirSync.py <source_path> <destination_path> <integer> <S||M||H||D> <log_path>
+    
     S = SECONDS
     M = MINUTES
     H = HOURS
     D = DAYS
     
-    Example for synchronizing every 5 minutes with absolute path:   
-    $ python dir_sync.py "C:\\Users\\MrRobot\\Documents\\Homework" "C:\\Users\\MrRobot\\Downloads\\VEEAM_CLOUD\\Homework" 5 M "C:\\Program Files\\VEEAM\\logs"
+    Example for synchronizing every 5 minutes with absolute path:
+    
+    $ python dirSync.py "C:\Users\MrRobot\Documents\Homework" "C:\Users\MrRobot\Downloads\VEEAM_CLOUD\Homework" 5 M "C:\Program Files\VEEAM\logs"
+    
     
     Example for synchronizing every 5 seconds with relative path:
-    $ python ..\\INFOSEC .\\INFOSEC 5 S .\\logz
+    
+    $ python dirSync.py ..\..\..\INFOSEC .\INFOSEC 5 S .\logz
     '''
     
 
@@ -62,7 +66,7 @@ def setup_log_path( log_path ):
     # folder check
     if not path.exists( log_path ):    
         
-        # set a unique delimiter regardless of platform (Linux\Windows)
+        # path delimiter
         sep = '\\' if '\\' in log_path else '/'            
         
         split_path = log_path.split( sep )
@@ -375,7 +379,7 @@ def full_dump_to_cloud( logger ):
 
     global client, cloud
     
-    log_it( logger, f"STARTING FULL SYNC\n" )
+    log_it( logger, f"STARTING FULL SYNC\n\n" )
     
     for item in listdir(client):    
         try:
@@ -429,7 +433,7 @@ def one_way_sync( logger ):
     
     sync_start = datetime.now()
      
-    log_it( logger, f"Starting sync at { datetime.now().strftime( '%y-%m-%d %H:%M' ) }\n" )
+    log_it( logger, f"Starting sync at { datetime.now().strftime( '%y-%m-%d %H:%M' ) }\n\n" )
     
     # get the source directory hash map
     client_hexmap = generate_hexmap( client, logger )
@@ -475,12 +479,10 @@ def one_way_sync( logger ):
     
     log_it( logger, f"Finished sync at { datetime.now().strftime( '%y-%m-%d %H:%M' ) }\n" )
     
-    reset_global()
-    
     return ( sync_finish - sync_start ).seconds
 
     
-def main( log_path_set=False, logger=None ):    
+def main( log_path_set=False ):    
     
     global client, cloud, client_hexmap, log_path, interval    
     
@@ -488,17 +490,11 @@ def main( log_path_set=False, logger=None ):
     ymd_now = datetime.now().strftime( '%Y-%m-%d' )    
     
     # setup log file
-    if not log_path_set:      
-        log_path_set = setup_log_path( log_path )    
+    if not log_path_set:
+        log_path_set = setup_log_path( log_path )
     
-    # Check if the current log file matches the current date
-    if logger == None:
-        logger = new_log_file( log_path, ymd_now )    
-    else:
-        if ymd_now not in logger.name:
-            logger.close()
-            logger = new_log_file( log_path, ymd_now )
-    
+    logger = new_log_file( log_path, ymd_now )
+       
     # sync folders
     sync_duration = one_way_sync( logger )    
     
@@ -507,14 +503,18 @@ def main( log_path_set=False, logger=None ):
     
     log_it( logger, f"Last sync took { sync_duration }\n" )
     
-    # reset hexmap & tree
+    # close log file to allow reading the last sync events
+    logger.close()
     
+    # reset hexmap & tree
+    reset_global()
+     
     if sync_delta <= 0:
         sleep( interval )
-        main(log_path_set, logger)
+        main( log_path_set )
     else:
         sleep( sync_delta )
-        main(log_path_set, logger)
+        main( log_path_set )
     
     
 if __name__ == '__main__':
