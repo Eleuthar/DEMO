@@ -9,7 +9,7 @@ from copy import deepcopy
 from pdb import set_trace
 
 
-__doc__ = '''
+__doc__ =  '''
     Usage: python dirSync.py <source_path> <destination_path> <integer> <S||M||H||D> <log_path>
     
     S = SECONDS
@@ -17,15 +17,11 @@ __doc__ = '''
     H = HOURS
     D = DAYS
     
-    Example for synchronizing every 5 minutes with absolute path:
+    Example for synchronizing every 5 minutes with absolute path:    
+    $ python dirSync.py "C:\\Users\\MrRobot\\Documents\\Homework" "C:\\Users\\MrRobot\\Downloads\\VEEAM_CLOUD\\Homework" 5 M "C:\\Program Files\\VEEAM\\logs"
     
-    $ python dirSync.py "C:\Users\MrRobot\Documents\Homework" "C:\Users\MrRobot\Downloads\VEEAM_CLOUD\Homework" 5 M "C:\Program Files\VEEAM\logs"
-    
-    
-    Example for synchronizing every 5 seconds with relative path:
-    
-    $ python dirSync.py ..\..\..\INFOSEC .\INFOSEC 5 S .\logz
-    '''
+    Example for synchronizing every 5 seconds with relative path:    
+    $ python dirSync.py ..\\..\\..\\INFOSEC .\\INFOSEC 5 S .\\logz'''
     
 
 if len( argv ) != 6 or not argv[3].isdigit() or argv[4].upper() not in [ 'S','M','H','D' ]:
@@ -149,7 +145,8 @@ def generate_hexmap( target, logger ):
         'flag' : []
     }
     
-    logger.write( f" {target} HEXMAP ".center (60, "-"))
+    logger.write( f"\n\n\n{target} HEXMAP\n" )
+    logger.write(f"\n{ 60 * '-'}\n")
     
     for directory in walk( target ):    
     # ( 0=dirname, 1=[folder basenames], 2=[files] )        
@@ -165,10 +162,10 @@ def generate_hexmap( target, logger ):
             hx = generate_file_hex( target, root, fname )
             hexmap[ 'hex' ].append( hx )
             hexmap[ 'flag' ].append(None)
-            logger.write(f"\n\n{ 85 * '-'}\n\n")
-            logger.write( f"\n{ path.join( root, fname ) }\n" )
+            
+            logger.write( f"{ path.join( root, fname ) }\n" )
             logger.write( f"{hx}\n" )
-            logger.write(f"\n\n{ 85 * '-'}\n\n")
+            logger.write(f"{ 60 * '-'}\n")
             
     return hexmap
 
@@ -210,7 +207,8 @@ def get_removable_dir( tree, logger ):
 # applicable only for cloud directories against client
     global cloud
     removable_dir = set( )
-    log_it(logger, "\n\nPreparing directories for removal:\n\n")
+    log_it( logger, "\n\nPreparing directories for removal\n")
+    log_it( logger, "```````````````````````````````````\n\n" )
     
     if len( tree[ cloud ] ) != 0:    
         for folder in tree[ cloud ]:            
@@ -218,7 +216,7 @@ def get_removable_dir( tree, logger ):
             
             # remove only common root subdir
             if not path.exists( expected_root_path_on_client ) and expected_root_path_on_client != client:            
-               log_it(logger, f"{folder}\n")
+               log_it(logger, f"{folder}\n\n")
                removable_dir.add( path.join( cloud, folder ) )
     log_it(logger, "\n\n\n")
     return removable_dir
@@ -229,9 +227,9 @@ def rm_obsolete_dir( root, logger ):
     global cloud
     
     try:        
-        log_it( logger, f"Deleting directory { root }\n" )
+        log_it( logger, f"\nDeleting directory { root }\n" )
         rmdir( root )
-        log_it( logger, f"Deleted directory { root }\n\n" )
+        log_it( logger, "DONE}\n\n" )
         
     except Exception as X:
         # is already deleted, content is already deleted
@@ -240,34 +238,6 @@ def rm_obsolete_dir( root, logger ):
     return
 
 
-def rename_it( logger, hexx, fpath_on_cloud ):
-
-    global client_hexmap, cloud
-    
-    old_path = fpath_on_cloud
-
-    for z in range( len( client_hexmap[ 'hex' ] ) ):
-    
-        if hexx == client_hexmap[ 'hex' ][ z ]:    
-        
-            # extract the corresponding full path on client side    
-            new_fname = client_hexmap[ 'fname' ][ z ]            
-            new_root = client_hexmap[ 'root' ][ z ][ len( client ) : ]
-            
-            new_root = new_root.removeprefix('\\') if '\\' in new_root else new_root.removeprefix('/')
-            
-            new_path = path.join( cloud, new_root, new_fname )    
-            
-            try:
-                log_it( logger, f"\nRENAMING {old_path} to {new_path}\n")
-                rename( new_path, old_path )
-                log_it( logger, f"\nRENAMED {old_path} to {new_path}\n")
-                
-            except Exception as X:
-                log_it( logger, f"\n{X}\n" )
-                
-            return
-
 
 def replace_it( logger, expected_path_on_client, fpath_on_cloud ):
     
@@ -275,7 +245,7 @@ def replace_it( logger, expected_path_on_client, fpath_on_cloud ):
         log_it( logger, f"\nUPDATING { fpath_on_cloud }\n" )        
         remove( fpath_on_cloud )        
         copy2( expected_path_on_client, fpath_on_cloud )        
-        log_it( logger, f"\nUPDATED { fpath_on_cloud }\n" )
+        log_it( logger, "\nDONE\n" )
         
     except Exception as X:
         log_it( logger, f"\n{X}\n" )
@@ -288,7 +258,7 @@ def remove_it( logger, fpath_on_cloud ):
     try:
         print( f"\nDELETING {fpath_on_cloud}\n" )
         remove( fpath_on_cloud )
-        log_it( logger, f"\nDELETED {fpath_on_cloud}\n")
+        log_it( logger, "\nDONE\n")
         
     except Exception as X:
         log_it( logger, f"\n{X}\n" )
@@ -296,27 +266,48 @@ def remove_it( logger, fpath_on_cloud ):
     return
    
 
-def flag_hexxed( prop, action=None ):
+def flag_hexmap( prop, action ):
     
-    global client_hexmap
+    global client_hexmap, client, cloud
     
     for z in range( len(client_hexmap['hex']) ):
         
-        # prop is basename to find the actual root path, being the only file with this name
-        if action == 'RENAME' and prop == client_hexmap[ 'fname' ][ z ]:
-            client_hexmap[ 'flag' ][ z ] = 'Z'            
-            
-        # prop is (common_root, dst_fn)
-        elif action == 'REPLACE' and prop[0] == client_hexmap[ 'root' ][ z ] and prop[1] == client_hexmap[ 'root' ][ z ]:
-            client_hexmap[ 'flag' ][ z ] = 'Z'
-    
-        # hex matching
-        elif action == None and prop == client_hexmap[ 'hex' ][ z ]:
+        # prop = ( dst_hex, fpath_on_cloud )
+        if action == 'RENAME' and prop[0] == client_hexmap[ 'hex' ][ z ]:
+            # extract the corresponding full path on client side    
+            new_fname = client_hexmap[ 'fname' ][ z ]            
+            new_root = client_hexmap[ 'root' ][ z ]
+            new_path = path.join( cloud, new_root, new_fname )
+            try:
+                log_it( logger, f"\nRENAMING {prop[1]} to {new_path}\n")
+                rename( fpath_on_cloud, new_path )
+                client_hexmap[ 'flag' ][ z ] = 'Z'
+                log_it( logger, "\nDONE\n")                
+            except Exception as X:
+                log_it( logger, f"\n{X}\n" )
+                
+        
+        # prop is (dst_root, dst_fn)
+        elif action == 'REPLACE' and prop[0] == client_hexmap[ 'root' ][ z ] and prop[1] == client_hexmap[ 'fname' ][ z ]:            
+            try:
+                fpath_on_cloud = path.join( cloud, prop[0], prop[1] )
+                fpath_on_client = path.join( client, prop[0], prop[1] )
+                log_it( logger, f"\nREPLACING {prop[1]} to {new_path}\n")
+                remove( fpath_on_cloud, new_path )
+                copy2( fpath_on_client, fpath_on_cloud )
+                client_hexmap[ 'flag' ][ z ] = 'Z'
+                log_it( logger, "\nDONE\n")                
+            except Exception as X:
+                log_it( logger, f"\n{X}\n" )
+                
+                
+        # hex & path matching, prop is dst_hex
+        elif action == 'PASS' and prop == client_hexmap[ 'hex' ][ z ]:
             client_hexmap[ 'flag' ][ z ] = 'Z'            
         
     return
 
-  
+
 def diff_hex( logger ):
     # start from the client deepest root    
     # if root not in cloud ['root'], review content recursively to remove\move\keep\update, then add to set for final cleanup
@@ -325,11 +316,11 @@ def diff_hex( logger ):
     
     dir_to_rm = get_removable_dir( tree, logger )
     
+    log_it( logger, "TARGET DIRECTORY CLEANUP\n````````````````````````\n" )
     
-    log_it( logger, "\nTARGET DIRECTORY CLEANUP\n\n" )
     # cloud-side cleanup
     for hx_tgt in reversed( cloud_hexmap['hex'] ):
-        set_trace()
+        
         index = cloud_hexmap['hex'].index( hx_tgt )
         
         dst_root = cloud_hexmap[ 'root' ][ index ]
@@ -337,38 +328,29 @@ def diff_hex( logger ):
         dst_hex = cloud_hexmap[ 'hex' ][ index ]
         
         common_root_fn = path.join( dst_root, dst_fn )
-        fpath_on_cloud = path.join( cloud, common_root_fn )               
-        )
+        fpath_on_cloud = path.join( cloud, common_root_fn )
         expected_path_on_client = path.join( client, common_root_fn )
         
         
         # same hex & path > PASS
         if dst_hex in client_hexmap[ 'hex' ] and path.exists( expected_path_on_client ) and path.exists( fpath_on_cloud ):
             
-            flag_hexxed( dst_hex )        
+            flag_hexmap(logger, dst_hex, action = 'PASS' )
             log_it( logger, f"\nPASS { fpath_on_cloud }\n" )
             
-                
-        # same hex & different path > RENAME
-        elif dst_hex in client_hexmap[ 'hex' ] and not path.exists( expected_path_on_client ) and dst_fn in client_hexmap[ 'fname' ]  and path.exists( fpath_on_cloud ): 
-        
-            rename_it( logger, dst_hex, fpath_on_cloud ) 
             
-       
-       # no hex match & same path > REPLACE
+        # same hex & different path > RENAME
+        elif dst_hex in client_hexmap[ 'hex' ] and not path.exists( expected_path_on_client ) and dst_fn in client_hexmap[ 'fname' ]  and path.exists( fpath_on_cloud ):
+        
+            flag_hexmap( logger, ( dst_hex, fpath_on_cloud ), action = 'RENAME' )
+            
+            
+       # no hex match & same path + fname > REPLACE
         elif path.exists( expected_path_on_client ) and path.exists( fpath_on_cloud ):
             
-            flag_hexxed( ( dst_root, dst_fn ), action = 'REPLACE' )
-            replace_it( logger, expected_path_on_client, fpath_on_cloud )
-
-
-        # no hex match & same unique filename but different root > RENAME
-        elif not path.exists( expected_path_on_client ) and path.exists( fpath_on_cloud ) and dst_root not in client_hexmap[ 'root' ] and dst_fn in client_hexmap[ 'fname' ] and client_hexmap[ 'fname' ].count( dst_fn ) == 1:
+            flag_hexmap( logger, ( dst_root, dst_fn ) action = 'REPLACE' )
+            
         
-            flag_hexxed( dst_fn, action = 'RENAME' )           
-            rename_it( logger, dst_root, fpath_on_cloud )
-
-                
         #  no hex match & no path match > DELETE
         elif path.exists( fpath_on_cloud ) and not path.exists( expected_path_on_client ) and dst_root not in client_hexmap[ 'root' ] and dst_fn not in client_hexmap[ 'fname' ]:
         
@@ -384,7 +366,7 @@ def full_dump_to_cloud( logger ):
     
     log_it( logger, f"\n\n\nSTARTING FULL SYNC\n\n" )
     
-    for item in listdir(client):    
+    for item in listdir(client):
         try:
             src = path.join( client, item )
             dst = path.join( cloud, item )
@@ -400,7 +382,7 @@ def full_dump_to_cloud( logger ):
             log_it( logger,  f"Error: { X }\n" )
             
     log_it( logger, f"\n\n\nFINISHED FULL SYNC\n\n" )
-    log_it( logger, f"{ 80 * '~'\n\n" )
+    log_it( logger, f"{ 80 * '~' }\n\n" )
     
     return
 
@@ -414,19 +396,22 @@ def selective_dump_to_cloud( logger ):
         if client_hexmap[ 'flag' ][ q ] == None:
             try:
                 # validate common_root on cloud
-                client_root = client_hexmap[ 'root '][ q ]
-                client_file = client_hexmap[ 'fname' ][ q ]
-                
-                src = path.join( client, client_root, client_file )                      
+                client_root = client_hexmap[ 'root' ][ q ]
+                client_file = client_hexmap[ 'fname' ][ q ]                                
+                src = path.join( client, client_root, client_file )
                 dst = path.join( cloud, client_root, client_file )
                 
-                log_it( logger, f"\nADDING {dst} from {src}\n" )
-                copy2( src, dst )
-                client_hexmap[ 'flag' ][ q ] = 'Z'
-                log_it( logger, "DONE\n" )
+                if not path.exists( dst ):
+                    log_it( logger, f"\n{path.join( client_root, client_file )} - " )
+                    copy2( src, dst )
+                    client_hexmap[ 'flag' ][ q ] = 'Z'
+                    log_it( logger, "DONE\n" )
+                
+                else:
+                    log_it( logger, f"\n{dst} already synced\n" ) 
                 
             except Exception as X:
-                log_it( logger, f"{X}\n")
+                log_it( logger, f"{X}\n" )
     return
     
 
@@ -453,6 +438,8 @@ def one_way_sync( logger ):
         
         # mirror source dir tree in descending order
         # both tree sets have only the common root extracted during hexmap generation
+        log_it( logger, "\n\nUPDATING TARGET TREE:\n" )
+        log_it( logger, "`````````````````````\n" )
         for client_dir in tree[ client ]:
         
             cloud_dirpath = path.join( cloud, client_dir )
@@ -460,12 +447,12 @@ def one_way_sync( logger ):
             if client_dir not in tree[ cloud ] and not path.exists( cloud_dirpath ):
                 
                 try:
-                    log_it( logger, f"\n\nMaking new DIR: {cloud_dirpath}\n" )
+                    log_it( logger, f"\n{cloud_dirpath} - " )
                     mkdir( cloud_dirpath )
                     log_it( logger, "DONE\n" )
                     
                 except Exception as X:                
-                    log_it( logger, X, )
+                    log_it( logger, f"{X}\n" )
                     # build upper tree
                     mk_upper_dircloud( cloud_dirpath, logger )
                 
@@ -473,17 +460,17 @@ def one_way_sync( logger ):
         obsolete_dirs = diff_hex( logger )
         
         # remove empty dirs after file cleanup
-        log_it( logger, "\n\n\nREMOVING OBSOLETE DIRECTORIES\n\n" )
+        log_it( logger, "\n\n\nREMOVING OBSOLETE DIRECTORIES\n``````````````````````````````\n" )
         for obsolete_dir in obsolete_dirs:
             rm_obsolete_dir( obsolete_dir, logger)
             
         # dump left-overs from client
-        log_it( logger, f"\n\n\nDUMPING REMAINING SOURCE ITEMS\n\n" )
+        log_it( logger, f"\nADDING NEW CONTENT\n\n" )
         selective_dump_to_cloud( logger )
     
     sync_finish = datetime.now()
     
-    log_it( logger, f"Finished sync at { datetime.now().strftime( '%y-%m-%d %H:%M' ) }\n" )
+    log_it( logger, f"\nFinished sync at { datetime.now().strftime( '%y-%m-%d %H:%M' ) }\n" )
     
     return ( sync_finish - sync_start ).seconds
 
@@ -505,7 +492,7 @@ def main( log_path_set=False ):
     sync_duration = one_way_sync( logger )    
     
     # determine last sync duration to cut from the interval sleep time until next sync 
-    sync_delta = sync_duration - interval
+    sync_delta = interval - sync_duration
     
     log_it( logger, f"\nLast sync took { sync_duration } seconds.\n\n" )
     
