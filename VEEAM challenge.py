@@ -100,7 +100,13 @@ def log_it( logger, log_item ):
 
 
 def extract_common_root( target, root ):
-           
+	
+	# From the landing path point, the file path should be identical for both client & cloud.
+	# Extract with "[ len( cloud ) : ]" the part that cannot be used by target
+	# client = C:\Downloads\Pirated_MP3\<common root>
+	# cloud = C:\Backup\Pirated_Music\<common root>
+	# If path string starts or ends with '\' or '/' join will fail
+	
     common_root = root[ len( target ) : ]    
 
     # remove beginning "\\" or "/"
@@ -189,20 +195,17 @@ def mk_upper_dircloud( root, logger ):
    
 def get_removable_dir( tree, logger ):
 # applicable only for cloud directories against client
-
     global cloud
-
     removable_dir = set( )
+    log_it(logger, "\n\nPreparing directories for removal:\n")
     
-    if len( tree[ 'cloud' ] ) != 0:
-        for folder in tree[ 'cloud' ]:
-            
+    if len( tree[ 'cloud' ] ) != 0:    
+        for folder in tree[ 'cloud' ]:            
             expected_root_path_on_client = path.join( client, folder )
             
             # remove only common root subdir
-            if not path.exists( expected_root_path_on_client ) and expected_root_path_on_client != client:
-            
-               log_it(logger, f"Prepared for removal: {folder}\n")
+            if not path.exists( expected_root_path_on_client ) and expected_root_path_on_client != client:            
+               log_it(logger, f"{folder}\n")
                removable_dir.add( path.join( cloud, folder ) )
    
     return removable_dir
@@ -280,7 +283,7 @@ def remove_it( logger, fpath_on_cloud ):
     return
    
 
-def flag_hex( prop, logger, action=None ):
+def flag_hex( prop, action=None ):
     
     global client_hexmap
     
@@ -318,27 +321,13 @@ def diff_hex( logger ):
         dst_fn = cloud_hexmap[ 'fname' ][ index ] 
         dst_hex = cloud_hexmap[ 'hex' ][ index ]
         
-        fpath_on_cloud = path.join( dst_root, dst_fn )
-        
-        common_root = extract_common_root( cloud, dst_root )
-        
-        # enrich list of empty removable root with ones not existing on client-side
-        if common_root not in client_hexmap[ 'root' ]:
-            dir_to_rm.add( dst_root )
-        
-        # from the landing path point, the file path should be identical for both client & cloud
-        # extract with "[ len( cloud ) : ]" the part that cannot be used by target
-        # client = C:\Downloads\Pirated_MP3\<common root>
-        # cloud = C:\Backup\Pirated_Music\<common root>
-        # if path string starts or ends with '\' or '/' join will fail
-        
-        common_root_fn = path.join( common_root, dst_fn )
-        
+        fpath_on_cloud = path.join( cloud, dst_root, dst_fn )               
+        common_root_fn = path.join( dst_root, dst_fn )        
         expected_path_on_client = path.join(client, common_root_fn)
         
         # same hex
         if dst_hex in client_hexmap['hex']:
-            flag_hex( dst_hex, logger )
+            flag_hex( dst_hex )
         
             # same path > PASS
             if path.exists( expected_path_on_client ):                
@@ -354,13 +343,13 @@ def diff_hex( logger ):
             # same path > REPLACE
             if path.exists( expected_path_on_client ):
             
-                flag_hex( (common_root, dst_fn), logger, action='REPLACE' )
+                flag_hex( (dst_root, dst_fn), action='REPLACE' )
                 replace_it( logger, expected_path_on_client, fpath_on_cloud )
 
             # same filename but different root > RENAME
             elif not path.exists( expected_path_on_client ) and dst_fn in client_hexmap['fname'] and client_hexmap['fname'].count( dst_fn ) == 1:
             
-                flag_hex( dst_fn, logger, action='RENAME' )            
+                flag_hex( dst_fn, action='RENAME' )            
                 rename_it( logger, dst_root, fpath_on_cloud )
                 
             # no path match > DELETE
@@ -398,38 +387,27 @@ def full_dump_to_cloud( logger ):
 
 
 def selective_dump_to_cloud( logger ):
-    
+
     global client_hexmap, cloud
     
-    for q in range( len( client_hexmap[ 'hex ' ] ) ):
-        
+    for q in range( len( client_hexmap[ 'hex' ] ) ):        
         # unhandled files are not flagged
         if client_hexmap[ 'flag' ][ q ] == None:
-            
-            # validate common_root on cloud
-            client_root = client_hexmap[ 'root '][ q ]
-            client_file = client_hexmap[ 'fname' ][ q ]             
-            fpath_on_client = path.join( client, client_root, client_file )            
-            dirpath_on_cloud = path.join( cloud, client_root )            
-            fpath_on_cloud = path.join( dirpath_on_cloud, client_file )
-            
-            # target path can be too deep or is not created
-            if not path.exists( dirpath_on_cloud ):
-            
-                try:
-                    log_it( logger, f"CREATING {dirpath_on_cloud}\n" )
-                    mkdir( dirpath_on_cloud )
-                    
-                    log_it( logger, f"ADDING {fpath_on_cloud} from {fpath_on_client}\n" )
-                    copy2( fpath_on_client, fpath_on_cloud )
-                    
-                    log_it( logger, "DONE\n" )
-                    client_hexmap[ 'flag' ][ q ] = 'Z'
+            try:
+                # validate common_root on cloud
+                client_root = client_hexmap[ 'root '][ q ]
+                client_file = client_hexmap[ 'fname' ][ q ]
                 
-                except Exception as X:
-                    log_it( logger, f"{X}\n\nAttempting to create the upper directory\n\n")
-                    mk_upper_dircloud( client_root, logger )
-                    
+                src = path.join( client, client_root, client_file )                      
+                dst = path.join( cloud, client_root, client_file )
+                
+                log_it( logger, f"ADDING {dst} from {src}\n" )
+                copy2( src, dst )
+                client_hexmap[ 'flag' ][ q ] = 'Z'
+                log_it( logger, "DONE\n" )
+                
+            except Exception as X:
+                log_it( logger, f"{X}\n")
     return
     
 
@@ -457,7 +435,7 @@ def one_way_sync( logger ):
         # mirror source dir tree in descending order
         # both tree sets have only the common root extracted during hexmap generation
         for client_dir in tree[' client ']:
-            
+        
             cloud_dirpath = path.join( cloud, client_dir )
             
             if client_dir not in tree[ 'cloud' ] and not path.exists( cloud_dirpath ):
@@ -471,7 +449,6 @@ def one_way_sync( logger ):
                     log_it( logger, X, )
                     # build upper tree
                     mk_upper_dircloud( cloud_dirpath, logger )
-                    
                 
         # cleanup on cloud storage
         obsolete_dirs = diff_hex( logger )
