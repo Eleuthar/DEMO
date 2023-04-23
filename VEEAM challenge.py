@@ -145,7 +145,7 @@ def generate_hexmap( target, logger ):
         'flag' : []
     }
     
-    logger.write( f"\n\n\n{target} HEXMAP\n" )
+    logger.write( f'\n\n\nHEXMAP for "{target}"\n' )
     logger.write(f"\n{ 60 * '-'}\n")
     
     for directory in walk( target ):    
@@ -193,11 +193,11 @@ def mk_upper_dircloud( root, logger ):
     while not path.exists( upper_path ):
         try:
             mkdir( upper_path )
-            log_it( logger, f"\nCREATED DIR: {upper_path}\n" )
+            log_it( logger, f"\n{upper_path} - DONE\n" )
             return
             
         except Exception as X:
-            log_it( logger, f"{X}\n\nAttempting to create the upper directory\n\n")
+            log_it( logger, f"{X}\n\n\nAttempting to create upper directory\n")
             mk_upper_dircloud( upper, logger )
     else:                    
         return
@@ -229,7 +229,7 @@ def rm_obsolete_dir( root, logger ):
     try:        
         log_it( logger, f"\nDeleting directory { root }\n" )
         rmdir( root )
-        log_it( logger, "DONE}\n\n" )
+        log_it( logger, "DONE\n\n" )
         
     except Exception as X:
         # is already deleted, content is already deleted
@@ -465,7 +465,7 @@ def one_way_sync( logger ):
             rm_obsolete_dir( obsolete_dir, logger)
             
         # dump left-overs from client
-        log_it( logger, f"\nADDING NEW CONTENT\n\n" )
+        log_it( logger, "\n\nADDING NEW CONTENT\n```````````````````\n\n" )
         selective_dump_to_cloud( logger )
     
     sync_finish = datetime.now()
