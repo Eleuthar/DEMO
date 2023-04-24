@@ -142,22 +142,6 @@ def reset_global():
     return
 
 
-def extract_common_root( target, root ):
-	
-	# From the landing path point, the file path should be identical for both client & cloud.
-	# Extract with "[ len( cloud ) : ]" the part that cannot be used by target
-	# client = C:\Downloads\Pirated_MP3\<common root>
-	# cloud = C:\Backup\Pirated_Music\<common root>
-	# If path string starts or ends with '\' or '/' join will fail
-	
-    common_root = root[ len( target ) : ]
-
-    # remove beginning "\\" or "/"
-    common_root = common_root.removeprefix('\\') if '\\' in common_root else common_root.removeprefix('/')
-    
-    return common_root
-
-
 def generate_file_hex( target, root, filename, blocksize=8192 ):
     hh = md5()
     with open( path.join(  target, root, filename ) , "rb" ) as f:
@@ -183,13 +167,17 @@ def generate_hexmap( target, logger ):
     logger.write(f"\n{ 60 * '-'}\n")
     
     for directory in walk( target ):    
-    # ( 0=dirname, 1=[folder basenames], 2=[files] )        
-        root = extract_common_root( target, directory[0] )
+        # ( 0=dirname, 1=[folder basenames], 2=[files] )
+        # client = C:\Downloads\Pirated_MP3\<common root>
+        # cloud = C:\Backup\Pirated_Music\<common root>	
+        common_root = directory[0][ len( target ) : ]
+
+        # remove beginning "\\" or "/" else join will fail
+        common_root = common_root.removeprefix('\\') if '\\' in common_root else common_root.removeprefix('/')
         
         # get a full list of all folders empty or not
         tree[ target ].add( root )
         
-        # add only
         for fname in directory[2]:
             hexmap[ 'root' ].append( root )
             hexmap[ 'fname' ].append( fname )
@@ -233,28 +221,20 @@ def mk_upper_dircloud( root, logger ):
    
 def rm_obsolete_dir( logger ):
 # applicable only for cloud directories against client
-    global tree, cloud
-    
-    removed = set()
-    
-    log_it( logger, "\nREMOVING OBSOLETE DIRECTORY\n``````````````````````````````" )
-    
-    if len( tree[ cloud ] ) != 0:    
-
-        for folder in tree[ cloud ]:
+    global tree, client, cloud
         
-            root = path.join( client, folder )
+    for folder in tree[ cloud ]:        
+        client_root = path.join( client, folder )
+        
+        if client_root != client and not path.exists( client_root ):
             
-            if folder not in removed and root != client and not path.exists( root ):
-                
-                try:
-                    rmdir( root )
-                    removed.add( folder )
-                    log_it( logger, f"Removed directory { root }\\ \n" )
-                
-                except Exception as X:            
-                    # is already deleted, content is already deleted
-                    log_it( logger, f"{ X }\n" )
+            try:
+                rmdir( path.join( cloud, folder )
+                log_it( logger, f"Removed directory { root }\\ \n" )
+            
+            except Exception as X:            
+                # is already deleted, content is already deleted
+                log_it( logger, f"{ X }\n" )
         
     return
 
@@ -465,9 +445,10 @@ def one_way_sync( logger ):
         log_it( logger, "FILE CLEANUP\n````````````````" )
         diff_hex( logger )
         
-        # remove empty dirs after file cleanup
+        # remove dirs after file cleanup
         log_it( logger, "\n\nREMOVING OBSOLETE DIRECTORIES\n``````````````````````````````" )
-        rm_obsolete_dir( logger )
+        if len( tree[ cloud ] ) != 0:
+            rm_obsolete_dir( logger )
             
         # dump left-overs from client
         log_it( logger, "\n\nADDING NEW CONTENT\n```````````````````" )
