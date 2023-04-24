@@ -1,7 +1,7 @@
 from getopt import getopt
 from hashlib import md5
 from sys import argv
-from os import walk, listdir, path, mkdir, replace, remove, rmdir, rename, strerror
+from os import walk, listdir, path, mkdir, remove, rmdir, rename, strerror
 import errno
 from shutil import copytree, copy2
 from datetime import datetime
