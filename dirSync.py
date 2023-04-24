@@ -6,7 +6,6 @@ import errno
 from shutil import copytree, copy2
 from datetime import datetime
 from time import sleep
-from copy import deepcopy
 
 
 __doc__ =  '''
