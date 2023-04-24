@@ -8,9 +8,6 @@ from datetime import datetime
 from time import sleep
 from copy import deepcopy
 
-from pdb import set_trace
-
-
 
 __doc__ =  '''
     Usage: python dirSync.py -s|--source_path <source_path> -d|--destination_path <destination_path> -i|--interval <integer><S||M||H||D> -l|--log <log_path>
