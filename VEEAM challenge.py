@@ -1,3 +1,4 @@
+from getopt import getopt
 from hashlib import md5
 from sys import argv
 from os import walk, listdir, path, mkdir, replace, remove, rmdir, rename
@@ -9,8 +10,9 @@ from copy import deepcopy
 from pdb import set_trace
 
 
+
 __doc__ =  '''
-    Usage: python dirSync.py <source_path> <destination_path> <integer> <S||M||H||D> <log_path>
+    Usage: python dirSync.py -s|--source_path <source_path> -d|--destination_path <destination_path> -i|--interval <integer><S||M||H||D> -l|--log <log_path>
     
     S = SECONDS
     M = MINUTES
@@ -21,35 +23,64 @@ __doc__ =  '''
     $ python dirSync.py "C:\\Users\\MrRobot\\Documents\\Homework" "C:\\Users\\MrRobot\\Downloads\\VEEAM_CLOUD\\Homework" 5 M "C:\\Program Files\\VEEAM\\logs"
     
     Example for synchronizing every 5 seconds with relative path:    
-    $ python dirSync.py ..\\..\\..\\INFOSEC .\\INFOSEC 5 S .\\logz'''
+    $ python dirSync.py ..\\..\\..\\INFOSEC .\\INFOSEC 5 S .\\logz
+    
+    On Windows run python with Command Prompt as Windows PowerShell does not handle well relative path
+    '''
     
 
-if len( argv ) != 6 or not argv[3].isdigit() or argv[4].upper() not in [ 'S','M','H','D' ]:
+if len( argv ) != 5
     print( __doc__ )
     exit()
     
-    
-# global variables    
+
+# global variables
+client = None
+cloud = None
+interval = None
+log_path = None
 timeframe = { 
     "S" : 1,
     "M" : 60,
     "H" : 3600,
     "D" : 86400
- }
- 
-client = path.realpath( argv[1] )
-cloud = path.realpath( argv[2] )
-log_path = path.realpath( argv[5] )
-
+}    
 # interval translated into seconds
-interval = ( int( argv[3] ) * timeframe[ argv[4].upper( ) ] )
-
+interval 
 client_hexmap = { }
 cloud_hexmap = { }
 tree = {}
+
+opts, args = getopt( argv , " s:d:i:l ",  [ "source_path = " , "destination_path = ", "interval = ", "log = " ] )
+
+
+try:
+    for opt, arg in opts:
+        if opt in [ "-s", "--source_path" ]:
+            client = path.realpath( arg ) if arg[-1] != '"' else arg[:-1]
+        
+        elif opt in [ "-d", "--destination_path" ]:
+            cloud = path.realpath( arg ) if arg[-1] != '"' else arg[:-1]
+        
+        elif opt in [ "-i", "--interval" ]:
+            quantifier = arg[:-1]
+            unit = arg[-1].upper()
+            
+            if unit in [ 'S','M','H','D' ] and quantifier.isdigit():
+                interval = int( quantifier ) * timeframe[ unit ]
+            else:            
+                print( __doc__ )
+                exit()
+            
+        elif opt in [ "-l", "--log" ]:
+            log_path = path.realpath( arg ) if arg[-1] != '"' else arg[:-1]
+except:
+    
+        
 tree[ client ] = set( )
 tree[ cloud ] = set( )
 
+   
     
 def setup_log_path( log_path ):
 # implemented log path validation since user interpretation can be ambiguous: either provide a directory to be created or use an existing one.
@@ -348,7 +379,7 @@ def diff_hex( logger ):
        # no hex match & same path + fname > REPLACE
         elif path.exists( expected_path_on_client ) and path.exists( fpath_on_cloud ):
             
-            flag_hexmap( logger, ( dst_root, dst_fn ) action = 'REPLACE' )
+            flag_hexmap( logger, ( dst_root, dst_fn ), action = 'REPLACE' )
             
         
         #  no hex match & no path match > DELETE
