@@ -7,6 +7,9 @@ from shutil import copytree, copy2
 from datetime import datetime
 from time import sleep
 
+from pdb import set_trace
+
+
 
 __doc__ =  '''
     Usage: python dirSync.py -s|--source_path <source_path> -d|--destination_path <destination_path> -i|--interval <integer><S||M||H||D> -l|--log <log_path>
@@ -42,7 +45,8 @@ interval
 client_hexmap = { }
 cloud_hexmap = { }
 tree = {}
-
+tree[ client ] = set( )
+tree[ cloud ] = set( )
 
 # opts = [long form], args = [short form]
 opts, args = getopt( argv[1:], "s:d:i:l:",  [ "source_path=" , "destination_path=", "interval=", "log=" ] )
@@ -75,11 +79,7 @@ try:
 except Exception as X:
     print( X, "\n\n", __doc__ )
     exit()    
-        
-tree[ client ] = set( )
-tree[ cloud ] = set( )
-
-   
+      
     
 def setup_log_path( log_path ):
 # implemented log path validation since user interpretation can be ambiguous: either provide a directory to be created or use an existing one.
