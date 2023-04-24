@@ -53,7 +53,6 @@ tree = {}
 
 opts, args = getopt( argv , " s:d:i:l ",  [ "source_path = " , "destination_path = ", "interval = ", "log = " ] )
 
-
 try:
     for opt, arg in opts:
         if opt in [ "-s", "--source_path" ]:
@@ -74,8 +73,9 @@ try:
             
         elif opt in [ "-l", "--log" ]:
             log_path = path.realpath( arg ) if arg[-1] != '"' else arg[:-1]
-except:
-    
+except Exception as X:
+    print( X, "\n\n" __doc__ )
+    exit()    
         
 tree[ client ] = set( )
 tree[ cloud ] = set( )
