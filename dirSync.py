@@ -284,10 +284,9 @@ def flag_hexmap( logger, prop, action ):
             new_root = client_hexmap[ 'root' ][ z ]
             new_path = path.join( cloud, new_root, new_fname )
             try:
-                log_it( logger, f"RENAMING {prop[1]} to {new_path}" )
                 rename( prop[1], new_path )
                 client_hexmap[ 'flag' ][ z ] = 'Z'
-                log_it( logger, "OK\n")                
+                log_it( logger, f"RENAMED {prop[1]} to {new_path}" )
             except Exception as X:
                 log_it( logger, f"{X}\n" )
                 
@@ -297,11 +296,10 @@ def flag_hexmap( logger, prop, action ):
             try:
                 fpath_on_cloud = path.join( cloud, prop[0], prop[1] )
                 fpath_on_client = path.join( client, prop[0], prop[1] )
-                log_it( logger, f"REPLACING {prop[1]} to {fpath_on_client}")
                 remove( fpath_on_cloud )
                 copy2( fpath_on_client, fpath_on_cloud )
                 client_hexmap[ 'flag' ][ z ] = 'Z'
-                log_it( logger, "OK\n")              
+                log_it( logger, f"REPLACED {prop[1]} to {fpath_on_client}")
             
             except OSError as XX:
                 if XX.errno == errno.ENOSPC:
@@ -313,9 +311,9 @@ def flag_hexmap( logger, prop, action ):
                 
                 
         # hex & path matching, prop is dst_hex
-        elif action == 'PASS' and prop == client_hexmap[ 'hex' ][ z ]:
+        elif action == 'PASS' and prop[0] == client_hexmap[ 'hex' ][ z ]:
             client_hexmap[ 'flag' ][ z ] = 'Z'
-            log_it( logger, f"PASS { fpath_on_cloud }\n" )            
+            log_it( logger, f"PASS {prop[1]}\n" )            
         
     return
 
@@ -347,7 +345,7 @@ def diff_hex( logger ):
         # same hex & path > PASS
         if dst_hex in client_hexmap[ 'hex' ] and path.exists( expected_path_on_client ) and path.exists( fpath_on_cloud ):
             
-            flag_hexmap(logger, dst_hex, action = 'PASS' )            
+            flag_hexmap(logger, ( dst_hex, fpath_on_cloud ), action = 'PASS' )            
             
             
         # same hex & different path > RENAME
@@ -462,7 +460,7 @@ def one_way_sync( logger ):
         
         # mirror source dir tree in descending order
         # both tree sets have only the common root extracted during hexmap generation
-        log_it( logger, "\n\nUPDATING DESTINATION TREE\n`````````````````````\n" )
+        log_it( logger, "UPDATING DESTINATION TREE\n`````````````````````\n" )
         for client_dir in tree[ client ]:
         
             cloud_dirpath = path.join( cloud, client_dir )
@@ -470,9 +468,8 @@ def one_way_sync( logger ):
             if client_dir not in tree[ cloud ] and not path.exists( cloud_dirpath ):
                 
                 try:
-                    log_it( logger, f"\n{cloud_dirpath} - " )
                     mkdir( cloud_dirpath )
-                    log_it( logger, "OK\n" )
+                    log_it( logger, f"{cloud_dirpath}" 
                     
                 except Exception as X:                
                     log_it( logger, f"{X}\n" )
