@@ -222,10 +222,11 @@ def rm_obsolete_dir( logger ):
     global tree, client, cloud
         
     for folder in tree[ cloud ]:
-        client_root = path.join( client, folder )
+        client_path = path.join( client, folder )
         
-        if client_root != client and not path.exists( client_root ):            
+        if client_path != client and not path.exists( client_path ):
             try:
+                #set_trace()
                 rmdir( path.join( cloud, folder ) )
                 log_it( logger, f"Removed directory { root }\\ \n" )
             
@@ -261,7 +262,8 @@ def diff_hex( logger ):
                     client_hexmap[ 'flag' ][ z ] = 'Z'
                     log_it( logger, f"\nPASS {fpath_on_cloud}\n" )
                     break
-                        
+     
+     
         # same hex & different path > RENAME
         # check for duplicates on both endpoints
         elif dst_hex in client_hexmap[ 'hex' ] and not path.exists( expected_path_on_client ) and client_hexmap[ 'hex' ].count( dst_hex ) == cloud_hexmap[ 'hex' ].count( dst_hex ):
@@ -285,6 +287,7 @@ def diff_hex( logger ):
                         
                     finally:
                         break            
+
         
         # same hex & different path but extra copy > DELETE
         elif dst_hex in client_hexmap[ 'hex' ] and client_hexmap[ 'hex' ][ client_hexmap[ 'hex' ].index( dst_hex ) ] and not path.exists( expected_path_on_client ) and client_hexmap[ 'hex' ].count( dst_hex ) < cloud_hexmap[ 'hex' ].count( dst_hex ):
@@ -348,16 +351,16 @@ def selective_dump_to_cloud( logger ):
     global client_hexmap, cloud
        
     for q in range( len( client_hexmap[ 'hex' ] ) ):
-    
-        if client_hexmap[ 'flag' ] == None:
-            root = client_hexmap[ 'root' ][ q ]
-            fname = client_hexmap[ 'fname' ][ q ]
-            src = path.join( client, root, fname)
-            dst = path.join( cloud, root, fname)            
-
+   
+        root = client_hexmap[ 'root' ][ q ]
+        fname = client_hexmap[ 'fname' ][ q ]
+        src = path.join( client, root, fname)
+        dst = path.join( cloud, root, fname)
+        
+        if not path.exists( dst ):
             try:
                 copy2( src, dst )
-                log_it( logger, f"{path.join( root, fname )}\n" )                
+                log_it( logger, f"{dst}\n" )                
                 
             except OSError as XX:
                 if XX.errno == errno.ENOSPC:
@@ -397,6 +400,8 @@ def one_way_sync( logger ):
         for client_dir in tree[ client ]:     
             cloud_dirpath = path.join( cloud, client_dir )
                         
+            #set_trace()            
+            
             if not path.exists( cloud_dirpath ):
                 try:
                     mkdir( cloud_dirpath )
