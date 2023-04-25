@@ -250,7 +250,6 @@ def diff_hex( logger ):
         fpath_on_cloud = path.join( cloud, common_root )        
         expected_path_on_client = path.join( client, common_root )        
         
-        set_trace()        
         
         # same hex & path > PASS
         if dst_hex in client_hexmap[ 'hex' ] and path.exists( expected_path_on_client ):
@@ -260,16 +259,18 @@ def diff_hex( logger ):
                 if client_hexmap[ 'flag' ][ z ] == None and client_hexmap[ 'hex' ][ z ] == dst_hex and client_hexmap[ 'fname' ] == dst_fname and client_hexmap[ 'root' ][ z ] == dst_root:            
                     
                     client_hexmap[ 'flag' ][ z ] = 'Z'
-                    log_it( logger, f"PASS {common_root}\n" )
+                    log_it( logger, f"\nPASS {fpath_on_cloud}\n" )
                     break
                         
         # same hex & different path > RENAME
-        elif dst_hex in client_hexmap[ 'hex' ] and not path.exists( expected_path_on_client ):
+        # check for duplicates on both endpoints
+        elif dst_hex in client_hexmap[ 'hex' ] and not path.exists( expected_path_on_client ) and client_hexmap[ 'hex' ].count( dst_hex ) == cloud_hexmap[ 'hex' ].count[ 'dst_hex' ]:
         
             for z in range( len( client_hexmap[ 'hex' ] ) ):
                 
                 # same fname but different root > RENAME
-                if client_hexmap[ 'flag' ][ z ] == None and client_hexmap[ 'hex' ][ z ] == dst_hex and ( client_hexmap[ 'fname' ] != dst_fname or client_hexmap[ 'root' ][ z ] != dst_root ):
+                if client_hexmap[ 'flag' ][ z ] == None and client_hexmap[ 'hex' ][ z ] == dst_hex and 
+                    ( client_hexmap[ 'fname' ] != dst_fname or client_hexmap[ 'root' ][ z ] != dst_root ):
 
                     new_root = client_hexmap[ 'root' ][ z ]
                     new_fname = client_hexmap[ 'fname' ][ z ]
@@ -278,7 +279,7 @@ def diff_hex( logger ):
                     try:
                         rename( fpath_on_cloud, new_path )
                         client_hexmap[ 'flag' ][ z ] = 'Z'
-                        log_it( logger, f"RENAMED {fpath_on_cloud} to {new_path}" )
+                        log_it( logger, f"\nRENAMED {fpath_on_cloud} to {new_path}" )
                         
                     except Exception as X:
                         log_it( logger, f"{X}\n" )
@@ -286,11 +287,25 @@ def diff_hex( logger ):
                     finally:
                         break            
         
+        # same hex & different path but extra copy > DELETE
+        elif dst_hex in client_hexmap[ 'hex' ] and client_hexmap[ 'hex' ][ client_hexmap[ 'hex' ].index( dst_hex ) ] and not path.exists( expected_path_on_client ) and client_hexmap[ 'hex' ].count( dst_hex ) < cloud_hexmap[ 'hex' ].count[ 'dst_hex' ]:
+            
+            try:
+                remove( fpath_on_cloud )           
+                log_it( logger, f\n"DELETED {fpath_on_cloud}\n" )
+                
+            except Exception as X:
+                log_it( logger, f"{X}\n" )
+                
+            finally:
+                break                
+                
+        
         # no hex match > DELETE
         elif dst_hex not in client_hexmap[ 'hex' ]:
             try:
                 remove( fpath_on_cloud )           
-                log_it( logger, f"UPDATED {fpath_on_cloud}\n" )
+                log_it( logger, f\n"DELETED {fpath_on_cloud}\n" )
                 
             except Exception as X:
                 log_it( logger, f"{X}\n" )
@@ -382,13 +397,11 @@ def one_way_sync( logger ):
         
         for client_dir in tree[ client ]:     
             cloud_dirpath = path.join( cloud, client_dir )
-            
-            set_trace()
-            
+                        
             if not path.exists( cloud_dirpath ):
                 try:
                     mkdir( cloud_dirpath )
-                    log_it( logger, f"\n{cloud_dirpath} - OK\n" )
+                    log_it( logger, f"{cloud_dirpath} - OK\n" )
                     
                 except OSError as XX:
                     if XX.errno == errno.ENOENT:
