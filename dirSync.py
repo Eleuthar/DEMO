@@ -264,13 +264,12 @@ def diff_hex( logger ):
                         
         # same hex & different path > RENAME
         # check for duplicates on both endpoints
-        elif dst_hex in client_hexmap[ 'hex' ] and not path.exists( expected_path_on_client ) and client_hexmap[ 'hex' ].count( dst_hex ) == cloud_hexmap[ 'hex' ].count[ 'dst_hex' ]:
+        elif dst_hex in client_hexmap[ 'hex' ] and not path.exists( expected_path_on_client ) and client_hexmap[ 'hex' ].count( dst_hex ) == cloud_hexmap[ 'hex' ].count( dst_hex ):
         
             for z in range( len( client_hexmap[ 'hex' ] ) ):
                 
                 # same fname but different root > RENAME
-                if client_hexmap[ 'flag' ][ z ] == None and client_hexmap[ 'hex' ][ z ] == dst_hex and 
-                    ( client_hexmap[ 'fname' ] != dst_fname or client_hexmap[ 'root' ][ z ] != dst_root ):
+                if client_hexmap[ 'flag' ][ z ] == None and client_hexmap[ 'hex' ][ z ] == dst_hex and ( client_hexmap[ 'fname' ] != dst_fname or client_hexmap[ 'root' ][ z ] != dst_root ):
 
                     new_root = client_hexmap[ 'root' ][ z ]
                     new_fname = client_hexmap[ 'fname' ][ z ]
@@ -288,11 +287,11 @@ def diff_hex( logger ):
                         break            
         
         # same hex & different path but extra copy > DELETE
-        elif dst_hex in client_hexmap[ 'hex' ] and client_hexmap[ 'hex' ][ client_hexmap[ 'hex' ].index( dst_hex ) ] and not path.exists( expected_path_on_client ) and client_hexmap[ 'hex' ].count( dst_hex ) < cloud_hexmap[ 'hex' ].count[ 'dst_hex' ]:
+        elif dst_hex in client_hexmap[ 'hex' ] and client_hexmap[ 'hex' ][ client_hexmap[ 'hex' ].index( dst_hex ) ] and not path.exists( expected_path_on_client ) and client_hexmap[ 'hex' ].count( dst_hex ) < cloud_hexmap[ 'hex' ].count( dst_hex ):
             
             try:
                 remove( fpath_on_cloud )           
-                log_it( logger, f\n"DELETED {fpath_on_cloud}\n" )
+                log_it( logger, f"\nDELETED {fpath_on_cloud}\n" )
                 
             except Exception as X:
                 log_it( logger, f"{X}\n" )
@@ -305,7 +304,7 @@ def diff_hex( logger ):
         elif dst_hex not in client_hexmap[ 'hex' ]:
             try:
                 remove( fpath_on_cloud )           
-                log_it( logger, f\n"DELETED {fpath_on_cloud}\n" )
+                log_it( logger, f"\nDELETED {fpath_on_cloud}\n" )
                 
             except Exception as X:
                 log_it( logger, f"{X}\n" )
