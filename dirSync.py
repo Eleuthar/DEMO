@@ -144,9 +144,7 @@ def generate_file_hex( target, root, filename, blocksize=8192 ):
 
 
 def generate_hexmap( target ):
-
-    global tree
-    
+    global tree    
     # hexmap flag initalized with None, later marked with "Z"
     # used only for client during diff_hex
     hexmap = {
@@ -154,39 +152,32 @@ def generate_hexmap( target ):
         'fname': [], 
         'hex': [],
         'flag' : []
-    }
-    
-    log_it( f'\n\n\n\nHEXMAP for "{target}"\n{ 60 * "-"}' )
-    
+    }    
+    log_it( f'\n\n\n\nHEXMAP for base root "{target}"\n{ 120 * "-"}' )    
     for directory in walk( target ):    
         # ( 0=dirname, 1=[folder basenames], 2=[files] )
         # client = C:\Downloads\Pirated_MP3\<common root>
         # cloud = C:\Backup\Pirated_Music\<common root>	
         root = directory[0][ len( target ) : ]
-
         # remove beginning "\\" or "/" else join will fail
-        root = root.removeprefix('\\') if '\\' in root else root.removeprefix('/')
-        
+        root = root.removeprefix('\\') if '\\' in root else root.removeprefix('/')        
         # get a full list of all folders empty or not
-        tree[ target ].add( root )
-        
+        tree[ target ].add( root )        
         for fname in directory[2]:
             hexmap[ 'root' ].append( root )
             hexmap[ 'fname' ].append( fname )
             hx = generate_file_hex( target, root, fname )
             hexmap[ 'hex' ].append( hx )
-            hexmap[ 'flag' ].append(None)
-            
-            log_it( f"{ path.join( root, fname ) }" )
-            log_it( f"{hx}\n" )
-            log_it( f"{ 60 * '-'}" )
-            
+            hexmap[ 'flag' ].append(None)            
+            log_it( f"\n{ path.join( root, fname ) }" )
+            log_it( f"\n{hx}" )
+            log_it( f"\n{ 120 * '-'}\n" )            
     return hexmap
     
 
 def mk_upper_dir( root ):
     global cloud    
-    
+    set_trace()
     current_dir = path.basename( root )
      
     # remove ending "\\" or "/"
@@ -210,30 +201,60 @@ def mk_upper_dir( root ):
             log_it( f"{X}" )
     else:                    
         return
+        
 
+def new_dir_cloud():
+
+    global tree, cloud, client
+    
+    new_dir_counter = 0
+
+    for client_dir in tree[ client ]:     
+        cloud_dirpath = path.join( cloud, client_dir )            
+        
+        if not path.exists( cloud_dirpath ):      
+            try:
+                mkdir( cloud_dirpath )
+                log_it( f"\n{cloud_dirpath} - OK" )
+                new_dir_counter += 1
+                
+            except Exception as XX:
+                if XX.errno == errno.ENOENT:
+                    # build upper tree
+                    mk_upper_dir( cloud_dirpath )
+                    new_dir_counter += 1
+    
+    return new_dir_counter
+    
    
 def rm_obsolete_dir( ):
 # applicable only for cloud directories against client
     global tree, client, cloud
-        
-    for folder in tree[ cloud ]:
+    
+    rm_counter = 0
+    set_trace()
+    
+    for folder in tree[ cloud ]:        
         client_path = path.join( client, folder )
         
         if client_path != client and not path.exists( client_path ):
             try:                
                 rmdir( path.join( cloud, folder ) )
+                rm_counter += 1
                 log_it( f"\nRemoved directory { root}\\\n" )
             
             except Exception as X:            
                 # is already deleted, content is already deleted
                 log_it( f"\n{ X }\n" )
         
-    return
+    return rm_counter
 
 
 def diff_hex( ):
 # iterate each cloud file against client and mark handled for later dump
     global client, cloud, client_hexmap, cloud_hexmap
+    
+    diff_counter = 0
     
     # cloud-side cleanup
     for j in range( len( cloud_hexmap[ 'hex' ] ) ):
@@ -246,71 +267,87 @@ def diff_hex( ):
         expected_path_on_client = path.join( client, common_root )        
         
         set_trace()
-        # same hex & path > PASS
-        if dst_hex in client_hexmap[ 'hex' ] and path.exists( expected_path_on_client ):
-        
-            for z in range( len( client_hexmap[ 'hex' ] ) ):
+        # hex match
+        if dst_hex in client_hexmap[ 'hex' ]:            
+                        
+            # client has at least 2 duplicates
+            elif client_hexmap[ 'hex' ].count( dst_hex ) > 1:
             
-                if client_hexmap[ 'flag' ][ z ] == None and client_hexmap[ 'hex' ][ z ] == dst_hex and client_hexmap[ 'fname' ] == dst_fname and client_hexmap[ 'root' ][ z ] == dst_root:            
-                    
-                    client_hexmap[ 'flag' ][ z ] = 'Z'
-                    log_it( f"\nPASS {fpath_on_cloud}\n" )
-                    break
-            continue
-     
-     
-        # same hex & different path & match count > RENAME
-        # keep potential duplicates, matching the duplicate item count on both endpoints
-        elif dst_hex in client_hexmap[ 'hex' ] and not path.exists( expected_path_on_client ) and client_hexmap[ 'hex' ].count( dst_hex ) == cloud_hexmap[ 'hex' ].count( dst_hex ):
-        
-            for z in range( len( client_hexmap[ 'hex' ] ) ):
+                log_it( f"Handling mutiple duplicates for {dst_hex}\n" )
                 
-                # same fname but different root > RENAME
-                if client_hexmap[ 'flag' ][ z ] == None and client_hexmap[ 'hex' ][ z ] == dst_hex and ( client_hexmap[ 'fname' ] != dst_fname or client_hexmap[ 'root' ][ z ] != dst_root ):
-
-                    new_root = client_hexmap[ 'root' ][ z ]
-                    new_fname = client_hexmap[ 'fname' ][ z ]
-                    new_path = path.join( cloud, new_root, new_fname )
+                # gather the index for each duplicate file of both endpoints
+                x = 0
+                ndx_src = [ x for x in range(len( client_hexmap[ 'hex' ] ) ) if client_hexmap[ 'hex' ][ x ] == dst_hex ]                
+                x = 0
+                ndx_dst = [ x for x in range(len( cloud_hexmap[ 'hex' ] ) ) if cloud_hexmap[ 'hex' ][ x ] == dst_hex ]
+                
+                max_len = max( len( ndx_dst ), len( ndx_src ) )
+                
+                # 1-1 renaming as a refresher, since they are all identical. Otherwise the logic would be way too complicated to parse something identical in content, except probably for name                                
+                try:
+                    x = 0
+                    for x in range( max_len ):
+                        dst_path = path.join( cloud, cloud_hexmap[ 'root' ][ ndx_dst[x] ], cloud_hexmap[ 'fname' ][ ndx_dst[x] ] )
+                        src_path = path.join( client, client_hexmap[ 'root' ][ ndx_src[x] ], client_hexmap[ 'fname' ][ ndx_src[x] ] )
+                        rename( src_path, dst_path )
+                        
+                        cloud_hexmap[ 'flag' ][ ndx_src[x] ] = 'Z'
+                        client_hexmap[ 'flag' ][ ndx_dst[x] ] = 'Z'
+                        
+                        ndx_src.remove( ndx_src[x] )
+                        ndx_dst.remove( ndx_dst[x] )
+                        x -= 1
+                        
+                # one of the lists is bigger by at least 1 and the other is now empty
+                except IndexError as XX:
+                    # if cloud is 0, then client is the bigger list; the rest of it's content will be dumped during selective_dump_to_cloud()
+                    if len( ndx_dst ) == 0:
+                        continue                    
+                    # remove the remaining obsolete cloud duplicates
+                    else:
+                        for ndx in ndx_dst:
+                            remove( path.join( cloud, cloud_hexmap[ 'root' ][ ndx ], cloud_hexmap[ 'fname' ][ ndx ] ) )
+                        continue
+                        
+                except Exception as X:
+                    log_it( f"\n{X}\n")
                     
-                    try:
-                        rename( fpath_on_cloud, new_path )
-                        client_hexmap[ 'flag' ][ z ] = 'Z'
-                        log_it( f"\nRENAMED {fpath_on_cloud} to {new_path}\n" )
-                        
-                    except Exception as X:
-                        log_it( f"{X}\n" )
-                        
-                    finally:
-                        break
-            continue
-
-        
-        # same hex & different path & different match count > DELETE extra
-        elif dst_hex in client_hexmap[ 'hex' ] and not path.exists( expected_path_on_client ) and client_hexmap[ 'hex' ].count( dst_hex ) < cloud_hexmap[ 'hex' ].count( dst_hex ):
+                # all duplicates' names has been refreshed
+                if (len( ndx_dst ) == 0 and len( ndx_src ) == 0) or len( ndx_dst ) == 0:
+                    continue
+                    
             
+            # unique hex match
+            elif client_hexmap[ 'hex' ].count( dst_hex ) == 1:
+               
+                index = client_hexmap[ 'hex' ].index( dst_hex )
+                client_hexmap[ 'flag' ][ index ] = 'Z'
+                
+                # PASS <<<<< cloud path matching
+                if path.exists( expected_path_on_client ):    
+                    log_it( f"\nPASS {common_root}\n" )
+                
+                # RENAME <<<<< path not matching
+                else:
+                    new_path = path.join( cloud, client_hexmap[ 'root' ][ index ], client_hexmap[ 'fname' ][ index ]
+                    rename( new_path, fpath_on_cloud )
+                    log_it( f"RENAMED {fpath_on_cloud} TO {new_path}\n" )
+                
+             
+        # no hex match
+        else:
             try:
-                remove( fpath_on_cloud )           
+                remove( fpath_on_cloud )
+                diff_counter += 1
                 log_it( f"\nDELETED {fpath_on_cloud}\n" )
                 
             except Exception as X:
                 log_it( f"{X}\n" )
                 
             finally:
-                continue              
+                continue 
                 
-        
-        # no hex match > DELETE
-        elif dst_hex not in client_hexmap[ 'hex' ]:
-            try:
-                remove( fpath_on_cloud )           
-                log_it( f"\nDELETED {fpath_on_cloud}\n" )
-                
-            except Exception as X:
-                log_it( f"{X}\n" )
-                
-            finally:
-                continue                
-    return
+    return diff_counter
 
 
 def full_dump_to_cloud( ):
@@ -343,28 +380,30 @@ def selective_dump_to_cloud( ):
 # directories have been already created
 # potential conflict handled in the previous stage
 # dumping remaining unflagged files
-
+    set_trace()
     global client_hexmap, cloud
        
     for q in range( len( client_hexmap[ 'hex' ] ) ):
-   
-        root = client_hexmap[ 'root' ][ q ]
-        fname = client_hexmap[ 'fname' ][ q ]
-        src = path.join( client, root, fname)
-        dst = path.join( cloud, root, fname)
-        
-        if not path.exists( dst ):
-            try:
-                copy2( src, dst )
-                log_it( f"{dst}\n" )                
-                
-            except OSError as XX:
-                if XX.errno == errno.ENOSPC:
-                    log_it( f"{strerror( XX.errno )}\n" )
-                    exit()
-                
-            except Exception as X:
-                log_it( f"{X}\n" )
+    
+        if client_hexmap[ 'flag' ] == None:
+       
+            root = client_hexmap[ 'root' ][ q ]
+            fname = client_hexmap[ 'fname' ][ q ]
+            src = path.join( client, root, fname)
+            dst = path.join( cloud, root, fname)
+            
+            if not path.exists( dst ) and path.exists( src ):
+                try:
+                    copy2( src, dst )
+                    log_it( f"{dst}\n" )                
+                    
+                except OSError as XX:
+                    if XX.errno == errno.ENOSPC:
+                        log_it( f"{strerror( XX.errno )}\n" )
+                        exit()
+                    
+                except Exception as X:
+                    log_it( f"{X}\n" )
     return
     
 
@@ -378,7 +417,7 @@ def one_way_sync( ):
     log_it( f"Starting sync at { datetime.now().strftime( '%y-%m-%d %H:%M' ) }\n" )
     
     # get the source directory hash map
-    client_hexmap = generate_hexmap( client, )
+    client_hexmap = generate_hexmap( client )
     
     # initial full dump to cloud storage
     if len( listdir( cloud ) ) == 0 and len( listdir( client ) ) != 0:
@@ -388,40 +427,46 @@ def one_way_sync( ):
         
     else:
         # get the destination directory hash map
-        cloud_hexmap = generate_hexmap( cloud, )
+        cloud_hexmap = generate_hexmap( cloud )
         
         # both tree sets have only the common root extracted during hexmap generation
-        log_it( "\n\nUPDATING DESTINATION TREE\n`````````````````````````" )
+        log_it( "\n\n\n\nUPDATING DESTINATION TREE\n`````````````````````````" )
         
-        for client_dir in tree[ client ]:     
-            cloud_dirpath = path.join( cloud, client_dir )
-                   
-            if not path.exists( cloud_dirpath ):
-                try:
-                    mkdir( cloud_dirpath )
-                    log_it( f"\n{cloud_dirpath} - OK" )
-                    
-                except OSError as XX:
-                    if XX.errno == errno.ENOENT:
-                        # build upper tree
-                        mk_upper_dir( cloud_dirpath, )
+        new_dir_counter = new_dir_cloud()
+        
+        if new_dir_counter == 0:
+            log_it( "No action taken\n" )
+        
                 
         # cleanup on cloud storage
-        log_it( "\n\nFILE CLEANUP\n````````````````\n" )
-        diff_hex( )
+        log_it( "\n\n\nFILE CLEANUP\n````````````\n" )
+        
+        cleanup_counter = diff_hex()
+        
+        if cleanup_counter == 0:        
+            log_it( "No action taken\n" )
+        
         
         # remove dirs after file cleanup
-        log_it( "\n\nREMOVING OBSOLETE DIRECTORIES\n``````````````````````````````\n" )
-        if len( tree[ cloud ] ) != 0:
-            rm_obsolete_dir( )
+        log_it( "\n\n\nREMOVING OBSOLETE DIRECTORIES\n``````````````````````````````\n" )
+        
+        rm_dir_counter = rm_obsolete_dir()
+    
+        if rm_dir_counter == 0:
+            log_it( "No action taken\n" )
+            
             
         # dump left-overs from client
         log_it( "\n\nADDING NEW CONTENT\n```````````````````\n" )
-        selective_dump_to_cloud( )
+        
+        dump_counter = selective_dump_to_cloud( )
+        
+        if dump_counter == 0:
+                log_it( "No action taken\n" )
     
     sync_finish = datetime.now()
     
-    log_it( f"\nFinished sync at { datetime.now().strftime( '%y-%m-%d %H:%M' ) }\n" )
+    log_it( f"\n\n\nFinished sync at { datetime.now().strftime( '%y-%m-%d %H:%M' ) }\n" )
     
     return ( sync_finish - sync_start ).seconds
 
