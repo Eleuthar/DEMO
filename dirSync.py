@@ -256,6 +256,7 @@ def diff_hex( ):
                     client_hexmap[ 'flag' ][ z ] = 'Z'
                     log_it( f"\nPASS {fpath_on_cloud}\n" )
                     break
+            continue
      
      
         # same hex & different path & match count > RENAME
@@ -281,6 +282,7 @@ def diff_hex( ):
                         
                     finally:
                         break
+            continue
 
         
         # same hex & different path & different match count > DELETE extra
@@ -294,7 +296,7 @@ def diff_hex( ):
                 log_it( f"{X}\n" )
                 
             finally:
-                break                
+                continue              
                 
         
         # no hex match > DELETE
@@ -307,7 +309,7 @@ def diff_hex( ):
                 log_it( f"{X}\n" )
                 
             finally:
-                break                
+                continue                
     return
 
 
