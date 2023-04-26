@@ -177,7 +177,7 @@ def generate_hexmap( target ):
 
 def mk_upper_dir( root ):
     global cloud    
-    #set_trace()
+    
     current_dir = path.basename( root )
      
     # remove ending "\\" or "/"
@@ -276,9 +276,9 @@ def diff_hex( ):
                 log_it( f"Handling mutiple duplicates for {common_root}\n" )
                 
                 # gather the index for each duplicate file of both endpoints
-                x = 0
+                #x = 0
                 ndx_src = [ x for x in range(len( client_hexmap[ 'hex' ] ) ) if client_hexmap[ 'hex' ][ x ] == dst_hex ]                
-                x = 0
+                #x = 0
                 ndx_dst = [ x for x in range(len( cloud_hexmap[ 'hex' ] ) ) if cloud_hexmap[ 'hex' ][ x ] == dst_hex ]
                 
                 max_len = max( len( ndx_dst ), len( ndx_src ) )
