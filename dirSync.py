@@ -289,7 +289,7 @@ def diff_hex( ):
                     for x in range( max_len ):
                         
                         # check if the path to be renamed is on client
-                        expected_path_on_client = path.join( client, cloud_hexmap[ 'root' ][ ndx_dst[x] ], cloud_hexmap[ 'fname' ][ ndx_dst[x] ] )                        
+                        dst_path_on_client = path.join( client, cloud_hexmap[ 'root' ][ ndx_dst[x] ], cloud_hexmap[ 'fname' ][ ndx_dst[x] ] )                        
                         
                         dst_path = path.join( cloud, cloud_hexmap[ 'root' ][ ndx_dst[x] ], cloud_hexmap[ 'fname' ][ ndx_dst[x] ] )
                         
@@ -297,8 +297,8 @@ def diff_hex( ):
                         src_path = path.join( cloud, client_hexmap[ 'root' ][ ndx_src[x] ], client_hexmap[ 'fname' ][ ndx_src[x] ] )
                         
                         # rename if the current cloud path should not exist on client
-                        if not path.exists( expected_path_on_client ):                        
-                            rename( src_path, dst_path )
+                        if not path.exists( dst_path_on_client ):                        
+                            rename( dst_path, src_path )
                         
                         cloud_hexmap[ 'flag' ][ ndx_src[x] ] = 'Z'
                         client_hexmap[ 'flag' ][ ndx_dst[x] ] = 'Z'
@@ -339,7 +339,7 @@ def diff_hex( ):
                 # RENAME <<<<< path not matching
                 else:
                     new_path = path.join( cloud, client_hexmap[ 'root' ][ index ], client_hexmap[ 'fname' ][ index ] )
-                    rename( new_path, fpath_on_cloud )
+                    rename( fpath_on_cloud, new_path )
                     log_it( f"RENAMED {fpath_on_cloud} TO {new_path}\n" )
                 
              
