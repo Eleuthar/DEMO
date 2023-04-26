@@ -177,7 +177,7 @@ def generate_hexmap( target ):
 
 def mk_upper_dir( root ):
     global cloud    
-    set_trace()
+    #set_trace()
     current_dir = path.basename( root )
      
     # remove ending "\\" or "/"
@@ -271,9 +271,9 @@ def diff_hex( ):
         if dst_hex in client_hexmap[ 'hex' ]:            
                         
             # client has at least 2 duplicates
-            elif client_hexmap[ 'hex' ].count( dst_hex ) > 1:
+            if client_hexmap[ 'hex' ].count( dst_hex ) > 1:
             
-                log_it( f"Handling mutiple duplicates for {dst_hex}\n" )
+                log_it( f"Handling mutiple duplicates for {common_root}\n" )
                 
                 # gather the index for each duplicate file of both endpoints
                 x = 0
@@ -287,9 +287,18 @@ def diff_hex( ):
                 try:
                     x = 0
                     for x in range( max_len ):
+                        
+                        # check if the path to be renamed is on client
+                        expected_path_on_client = path.join( client, cloud_hexmap[ 'root' ][ ndx_dst[x] ], cloud_hexmap[ 'fname' ][ ndx_dst[x] ] )                        
+                        
                         dst_path = path.join( cloud, cloud_hexmap[ 'root' ][ ndx_dst[x] ], cloud_hexmap[ 'fname' ][ ndx_dst[x] ] )
-                        src_path = path.join( client, client_hexmap[ 'root' ][ ndx_src[x] ], client_hexmap[ 'fname' ][ ndx_src[x] ] )
-                        rename( src_path, dst_path )
+                        
+                        # use the common root from client
+                        src_path = path.join( cloud, client_hexmap[ 'root' ][ ndx_src[x] ], client_hexmap[ 'fname' ][ ndx_src[x] ] )
+                        
+                        # rename if the current cloud path should not exist on client
+                        if not path.exists( expected_path_on_client ):                        
+                            rename( src_path, dst_path )
                         
                         cloud_hexmap[ 'flag' ][ ndx_src[x] ] = 'Z'
                         client_hexmap[ 'flag' ][ ndx_dst[x] ] = 'Z'
@@ -329,7 +338,7 @@ def diff_hex( ):
                 
                 # RENAME <<<<< path not matching
                 else:
-                    new_path = path.join( cloud, client_hexmap[ 'root' ][ index ], client_hexmap[ 'fname' ][ index ]
+                    new_path = path.join( cloud, client_hexmap[ 'root' ][ index ], client_hexmap[ 'fname' ][ index ] )
                     rename( new_path, fpath_on_cloud )
                     log_it( f"RENAMED {fpath_on_cloud} TO {new_path}\n" )
                 
