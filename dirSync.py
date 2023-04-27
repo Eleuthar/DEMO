@@ -241,10 +241,10 @@ def rm_obsolete_dir( ):
             try:                
                 rmdir( path.join( cloud, folder ) )
                 rm_counter += 1
-                log_it( f"\nRemoved directory { root}\\\n" )
+                log_it( f"\nRemoved directory {root}\\\n" )
             
             except Exception as X:            
-                # is already deleted, content is already deleted
+                # is already deleted
                 log_it( f"\n{ X }\n" )
         
     return rm_counter
@@ -267,49 +267,68 @@ def diff_hex( ):
         expected_path_on_client = path.join( client, common_root )        
         
         set_trace()
+        print(f"\n\nhandling {common_root}\n\n")
+        
         # hex match
-        if dst_hex in client_hexmap[ 'hex' ]:            
+        # both the client & cloud targets must have not been flagged previously
+        
+        if dst_hex in client_hexmap[ 'hex' ]:
                         
             # client has at least 2 duplicates
-            if client_hexmap[ 'hex' ].count( dst_hex ) > 1:
+            # get the matching client's file index by "client_hexmap[ 'hex' ].index( dst_hex )"
+            if ( client_hexmap[ 'hex' ].count( dst_hex ) > 1 or cloud_hexmap[ 'hex' ].count( dst_hex ) > 1 ) and client_hexmap[ 'flag' ][ client_hexmap[ 'hex' ].index( dst_hex ) ] == None:
             
-                log_it( f"Handling mutiple duplicates for {common_root}\n" )
+                log_it( f"Handling duplicates for '{common_root}'\n" )
                 
                 # gather the index for each duplicate file of both endpoints
-                #x = 0
                 ndx_src = [ x for x in range(len( client_hexmap[ 'hex' ] ) ) if client_hexmap[ 'hex' ][ x ] == dst_hex ]                
-                #x = 0
+                x = 0
+                
                 ndx_dst = [ x for x in range(len( cloud_hexmap[ 'hex' ] ) ) if cloud_hexmap[ 'hex' ][ x ] == dst_hex ]
+                x = 0
                 
                 max_len = max( len( ndx_dst ), len( ndx_src ) )
                 
-                # 1-1 renaming as a refresher, since they are all identical. Otherwise the logic would be way too complicated to parse something identical in content, except probably for name                                
-                try:
-                    x = 0
-                    for x in range( max_len ):
+                # 1-1 name refresher                              
+                try:                   
+                    for x in range( max_len ):                    
+                        x = 0
                         
-                        # check if the path to be renamed is on client
+                        # can be invalid on client
                         dst_path_on_client = path.join( client, cloud_hexmap[ 'root' ][ ndx_dst[x] ], cloud_hexmap[ 'fname' ][ ndx_dst[x] ] )                        
                         
+                        # current cloud path pending validation
                         dst_path = path.join( cloud, cloud_hexmap[ 'root' ][ ndx_dst[x] ], cloud_hexmap[ 'fname' ][ ndx_dst[x] ] )
                         
-                        # use the common root from client
-                        src_path = path.join( cloud, client_hexmap[ 'root' ][ ndx_src[x] ], client_hexmap[ 'fname' ][ ndx_src[x] ] )
                         
-                        # rename if the current cloud path should not exist on client
-                        if not path.exists( dst_path_on_client ):                        
-                            rename( dst_path, src_path )
+                        # should be finally on client
+                        src_path_on_cloud = path.join( cloud, client_hexmap[ 'root' ][ ndx_src[x] ], client_hexmap[ 'fname' ][ ndx_src[x] ] )
+                       
+                       
+                        # for debugging
+                        #print(f"\n{dst_path} <<<<<<<<<<<<<< \n{dst_path_on_client} vs \n{src_path_on_cloud}\n")
                         
+                        
+                        # dst_path is an extra duplicate
+                        if not path.exists( dst_path_on_client ) and path.exists( src_path_on_cloud ) and src_path_on_cloud != dst_path:
+                            remove( dst_path )
+                            
+                            
+                        # rename if the current cloud path should not exist on client                       
+                        elif not path.exists( dst_path_on_client ) and not path.exists( src_path_on_cloud ):
+                            rename( dst_path, src_path_on_cloud )
+
+                       
                         cloud_hexmap[ 'flag' ][ ndx_src[x] ] = 'Z'
                         client_hexmap[ 'flag' ][ ndx_dst[x] ] = 'Z'
                         
                         ndx_src.remove( ndx_src[x] )
                         ndx_dst.remove( ndx_dst[x] )
-                        x -= 1
+                        
                         
                 # one of the lists is bigger by at least 1 and the other is now empty
                 except IndexError as XX:
-                    # if cloud is 0, then client is the bigger list; the rest of it's content will be dumped during selective_dump_to_cloud()
+                    # if ndx_dst aka cloud is 0, then client is the bigger list; the rest of the duplicate client files will be dumped during selective_dump_to_cloud()
                     if len( ndx_dst ) == 0:
                         continue                    
                     # remove the remaining obsolete cloud duplicates
@@ -320,10 +339,6 @@ def diff_hex( ):
                         
                 except Exception as X:
                     log_it( f"\n{X}\n")
-                    
-                # all duplicates' names has been refreshed
-                if (len( ndx_dst ) == 0 and len( ndx_src ) == 0) or len( ndx_dst ) == 0:
-                    continue
                     
             
             # unique hex match
@@ -386,15 +401,14 @@ def full_dump_to_cloud( ):
 
 
 def selective_dump_to_cloud( ):
-# directories have been already created
-# potential conflict handled in the previous stage
+# potential conflict handled in the previous stage as directories have been already created
 # dumping remaining unflagged files
-    set_trace()
+    
     global client_hexmap, cloud
        
     for q in range( len( client_hexmap[ 'hex' ] ) ):
     
-        if client_hexmap[ 'flag' ] == None:
+        if client_hexmap[ 'flag' ][ q ] == None:
        
             root = client_hexmap[ 'root' ][ q ]
             fname = client_hexmap[ 'fname' ][ q ]
