@@ -232,42 +232,41 @@ def rm_lower( dirpath ):
         
         for dirname in listdir( dirpath ):
             try:
-                child_dir = path.join( dirpath, dirname ):
+                child_dir = path.join( dirpath, dirname )
                 rmdir( child_dir )
                 log_it( f"\nRemoved directory {child_dir}\\\n" ) 
             
             except OSError:
                 # dir not empty
                 rm_lower( child_dir )
-                log_it( f"\nRemoved directory {root}\\\n" )  
+                log_it( f"\nRemoved directory {child_dir}\\\n" )  
         
         # remove parent after clearing its children
         rmdir( dirpath )
         log_it( f"\nRemoved directory {dirpath}\\\n" ) 
             
 
-   
 def rm_obsolete_dir( ):
 # applicable only for cloud directories against client
     global tree, client, cloud
     
     rm_counter = 0
-    set_trace()
+    #set_trace()
     
     for folder in tree[ cloud ]:        
-        cloud_path = path.join( client, folder )
+        cloud_path_on_client = path.join( client, folder )
         
-        if client_path != client and not path.exists( client_path ):
+        if cloud_path_on_client != client and not path.exists( cloud_path_on_client ):
             try:
                 dirpath = path.join( cloud, folder )
                 rmdir( dirpath )
                 rm_counter += 1
-                log_it( f"\nRemoved directory {root}\\\n" )
+                log_it( f"\nRemoved directory {dirpath}\\\n" )
             except OSError:
                 # dir not empty
                 rm_lower( dirpath )
                 rm_counter += 1
-                log_it( f"\nRemoved directory {root}\\\n" )                
+                log_it( f"\nRemoved directory {dirpath}\\\n" )                
                 
             except Exception as X:            
                 # is already deleted
