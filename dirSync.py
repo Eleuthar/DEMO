@@ -227,6 +227,26 @@ def new_dir_cloud():
     return new_dir_counter
     
    
+def rm_lower( dirpath ):
+    if path.exists( dirpath ) and len( listdir( dirpath ) ) != 0:
+        
+        for dirname in listdir( dirpath ):
+            try:
+                child_dir = path.join( dirpath, dirname ):
+                rmdir( child_dir )
+                log_it( f"\nRemoved directory {child_dir}\\\n" ) 
+            
+            except OSError:
+                # dir not empty
+                rm_lower( child_dir )
+                log_it( f"\nRemoved directory {root}\\\n" )  
+        
+        # remove parent after clearing its children
+        rmdir( dirpath )
+        log_it( f"\nRemoved directory {dirpath}\\\n" ) 
+            
+
+   
 def rm_obsolete_dir( ):
 # applicable only for cloud directories against client
     global tree, client, cloud
@@ -235,14 +255,20 @@ def rm_obsolete_dir( ):
     set_trace()
     
     for folder in tree[ cloud ]:        
-        client_path = path.join( client, folder )
+        cloud_path = path.join( client, folder )
         
         if client_path != client and not path.exists( client_path ):
-            try:                
-                rmdir( path.join( cloud, folder ) )
+            try:
+                dirpath = path.join( cloud, folder )
+                rmdir( dirpath )
                 rm_counter += 1
                 log_it( f"\nRemoved directory {root}\\\n" )
-            
+            except OSError:
+                # dir not empty
+                rm_lower( dirpath )
+                rm_counter += 1
+                log_it( f"\nRemoved directory {root}\\\n" )                
+                
             except Exception as X:            
                 # is already deleted
                 log_it( f"\n{ X }\n" )
@@ -266,8 +292,9 @@ def diff_hex( ):
         fpath_on_cloud = path.join( cloud, common_root )        
         expected_path_on_client = path.join( client, common_root )        
         
-        set_trace()
-        print(f"\n\nhandling {common_root}\n\n")
+        # debugging only
+        #set_trace()
+        #print(f"\n\nhandling {common_root}\n\n")
         
         # hex match
         # both the client & cloud targets must have not been flagged previously
@@ -334,7 +361,11 @@ def diff_hex( ):
                     # remove the remaining obsolete cloud duplicates
                     else:
                         for ndx in ndx_dst:
-                            remove( path.join( cloud, cloud_hexmap[ 'root' ][ ndx ], cloud_hexmap[ 'fname' ][ ndx ] ) )
+                            try:
+                                remove( path.join( cloud, cloud_hexmap[ 'root' ][ ndx ], cloud_hexmap[ 'fname' ][ ndx ] ) )
+                            except FileNotFoundError:
+                                # the file was previously removed
+                                continue
                         continue
                         
                 except Exception as X:
@@ -355,7 +386,7 @@ def diff_hex( ):
                 else:
                     new_path = path.join( cloud, client_hexmap[ 'root' ][ index ], client_hexmap[ 'fname' ][ index ] )
                     rename( fpath_on_cloud, new_path )
-                    log_it( f"RENAMED {fpath_on_cloud} TO {new_path}\n" )
+                    log_it( f"RENAMED {fpath_on_cloud} TO {new_path}" )
                 
              
         # no hex match
@@ -363,7 +394,11 @@ def diff_hex( ):
             try:
                 remove( fpath_on_cloud )
                 diff_counter += 1
-                log_it( f"\nDELETED {fpath_on_cloud}\n" )
+                log_it( f"DELETED {fpath_on_cloud}\n" )
+                
+            except OSError as XX:
+                if XX.errno == 2:
+                    pass
                 
             except Exception as X:
                 log_it( f"{X}\n" )
