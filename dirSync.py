@@ -171,7 +171,7 @@ def generate_hexmap( target ):
             hexmap[ 'flag' ].append(None)            
             log_it( f"\n{ path.join( root, fname ) }" )
             log_it( f"\n{hx}" )
-            log_it( f"\n{ 120 * '-'}\n" )            
+            log_it( f"\n{ 120 * '-'}" )            
     return hexmap
     
 
@@ -215,7 +215,7 @@ def new_dir_cloud():
         if not path.exists( cloud_dirpath ):      
             try:
                 mkdir( cloud_dirpath )
-                log_it( f"\n{cloud_dirpath} - OK" )
+                log_it( f"\n{cloud_dirpath} - OK\n" )
                 new_dir_counter += 1
                 
             except Exception as XX:
@@ -400,7 +400,7 @@ def diff_hex( ):
                 else:
                     new_path = path.join( cloud, client_hexmap[ 'root' ][ index ], client_hexmap[ 'fname' ][ index ] )
                     rename( fpath_on_cloud, new_path )
-                    log_it( f"RENAMED {fpath_on_cloud} TO {new_path}" )
+                    log_it( f"\nRENAMED {fpath_on_cloud} TO {new_path}" )
                 
              
         # no hex match
@@ -408,7 +408,7 @@ def diff_hex( ):
             try:
                 remove( fpath_on_cloud )
                 diff_counter += 1
-                log_it( f"DELETED {fpath_on_cloud}\n" )
+                log_it( f"\nDELETED {fpath_on_cloud}\n" )
                 
             #except OSError as XX:
             #    if XX.errno == 2:
@@ -493,30 +493,28 @@ def one_way_sync( ):
     
     # initial full dump to cloud storage
     if len( listdir( cloud ) ) == 0 and len( listdir( client ) ) != 0:
-        log_it( f"\nFULL SYNC\n" )
-        full_dump_to_cloud( )
-        log_it( f"\nFINISHED FULL SYNC\n\n" )
-        
+        log_it( f"\n\n\nPERFORMING FULL SYNC\n\n" )
+        full_dump_to_cloud( )        
     else:
         # get the destination directory hash map
         cloud_hexmap = generate_hexmap( cloud )
         
         # both tree sets have only the common root extracted during hexmap generation
-        log_it( "\n\n\n\nUPDATING DESTINATION TREE\n`````````````````````````" )
+        log_it( "\n\n\nUPDATING DESTINATION TREE\n`````````````````````````\n" )
         
         new_dir_counter = new_dir_cloud()
         
         if new_dir_counter == 0:
-            log_it( "No action taken\n" )
+            log_it( "\nNo action taken\n" )
         
                 
         # cleanup on cloud storage
-        log_it( "\n\n\nFILE CLEANUP\n````````````\n" )
+        log_it( "\n\n\n\nFILE CLEANUP\n````````````\n" )
         
         cleanup_counter = diff_hex()
         
         if cleanup_counter == 0:        
-            log_it( "No action taken\n" )
+            log_it( "\nNo action taken\n" )
         
         
         # remove dirs after file cleanup
@@ -525,16 +523,16 @@ def one_way_sync( ):
         rm_dir_counter = rm_obsolete_dir()
     
         if rm_dir_counter == 0:
-            log_it( "No action taken\n" )
+            log_it( "\nNo action taken\n" )
             
             
         # dump left-overs from client
-        log_it( "\n\nADDING NEW CONTENT\n```````````````````\n" )
+        log_it( "\n\n\nADDING NEW CONTENT\n```````````````````\n" )
         
         dump_counter = selective_dump_to_cloud( )
         
         if dump_counter == 0:
-                log_it( "No action taken\n" )
+                log_it( "\nNo action taken\n" )
     
     sync_finish = datetime.now()
     
