@@ -288,27 +288,29 @@ def diff_hex( ):
         dst_hex = cloud_hexmap[ 'hex' ][ j ]        
         common_root = path.join( dst_root, dst_fname )
         fpath_on_cloud = path.join( cloud, common_root )        
-        expected_path_on_client = path.join( client, common_root )        
+        expected_path_on_client = path.join( client, common_root )   
+         
+        # skip flagged items handled during duplication handling scenario 
+        if cloud_hexmap[ 'flag' ][ j ] != None:
+            continue            
         
-                
         # hex match
         # both the client & cloud targets must have not been flagged previously
         if dst_hex in client_hexmap[ 'hex' ]:
                         
-            # client has at least 2 duplicates
+            # client and\or cloud has at least 2 duplicates
+            
             # get the matching client's file index by "client_hexmap[ 'hex' ].index( dst_hex )"
-            if ( client_hexmap[ 'hex' ].count( dst_hex ) > 1 or cloud_hexmap[ 'hex' ].count( dst_hex ) > 1 ) and client_hexmap[ 'flag' ][ client_hexmap[ 'hex' ].index( dst_hex ) ] == None:
+            if ( client_hexmap[ 'hex' ].count( dst_hex ) > 1 or cloud_hexmap[ 'hex' ].count( dst_hex ) > 1 ):
             
                 log_it( f"Handling duplicates for '{common_root}'\n" )
                 
                 # gather the index for each duplicate file of both endpoints
                 ndx_src = [ x for x in range(len( client_hexmap[ 'hex' ] ) ) if client_hexmap[ 'hex' ][ x ] == dst_hex ]
-                x = 0
-                # [1]
+                x = 0                
                 
                 ndx_dst = [ x for x in range(len( cloud_hexmap[ 'hex' ] ) ) if cloud_hexmap[ 'hex' ][ x ] == dst_hex ]
                 x = 0
-                # [6, 8]   
                 
                 max_len = max( len( ndx_dst ), len( ndx_src ) )
                 
@@ -346,46 +348,47 @@ def diff_hex( ):
                         client_hexmap[ 'flag' ][ ndx_src[x] ] = 'Z'
                         
                         del ndx_src[0], ndx_dst[0]
-                        
-                        
+                                                
                 # one of the lists is bigger by at least 1 and the other is now empty
                 except IndexError as XX:
 
-                    # if ndx_dst is 0, then client has the bigger duplicate list; the rest of the duplicate client files will be dumped now
+                    # the client has the bigger duplicate list of files; the remaining will be dumped now
                     if len( ndx_dst ) == 0:                        
                         for ndx in ndx_src:                            
                             try:
-                                new_path = path.join( client_hexmap[ 'root '][ ndx ], client_hexmap[ 'fname' ][ ndx ] )
+                                new_path = path.join( client_hexmap[ 'root' ][ ndx ], client_hexmap[ 'fname' ][ ndx ] )
                                 from_path = path.join( client, new_path )
                                 to_path = path.join( cloud, new_path )
                                 
                                 if not path.exists( to_path ):
                                     copy2( from_path, to_path )
                                     log_it( f"Copied {to_path}\n" )
+                                    client_hexmap[ 'flag' ][ ndx ] = 'Z'
                                     
                             except Exception as XXX:
-                                log_it( f"\n{XXX}\n" )
-                        continue           
+                                log_it( f"\n{XXX}\n" )                                   
                         
                     # remove the remaining obsolete cloud duplicates
                     else:
                         for ndx in ndx_dst:
                             try:
                                 remove( path.join( cloud, cloud_hexmap[ 'root' ][ ndx ], cloud_hexmap[ 'fname' ][ ndx ] ) )
+                                cloud_hexmap[ 'flag' ][ ndx ] = 'Z'
                                 log_it( f"\nDELETED extra duplicate {dst_path}\n" )
                                 
                             except FileNotFoundError:
                                 # the file was previously removed
-                                continue
-                        continue
+                                pass                        
                         
                 except Exception as X:
                     log_it( f"\n{X}\n")
+                
+                finally:
+                    continue
                     
             
             # unique hex match
-            elif client_hexmap[ 'hex' ].count( dst_hex ) == 1:
-               
+            else:               
                 index = client_hexmap[ 'hex' ].index( dst_hex )
                 client_hexmap[ 'flag' ][ index ] = 'Z'
                 
@@ -407,9 +410,9 @@ def diff_hex( ):
                 diff_counter += 1
                 log_it( f"DELETED {fpath_on_cloud}\n" )
                 
-            except OSError as XX:
-                if XX.errno == 2:
-                    pass
+            #except OSError as XX:
+            #    if XX.errno == 2:
+            #        pass
                 
             except Exception as X:
                 log_it( f"{X}\n" )
