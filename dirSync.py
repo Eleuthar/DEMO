@@ -251,7 +251,6 @@ def rm_obsolete_dir( ):
     global tree, client, cloud
     
     rm_counter = 0
-    #set_trace()
     
     for folder in tree[ cloud ]:        
         cloud_path_on_client = path.join( client, folder )
@@ -291,13 +290,9 @@ def diff_hex( ):
         fpath_on_cloud = path.join( cloud, common_root )        
         expected_path_on_client = path.join( client, common_root )        
         
-        # debugging only
-        #set_trace()
-        #print(f"\n\nhandling {common_root}\n\n")
-        
+                
         # hex match
         # both the client & cloud targets must have not been flagged previously
-        
         if dst_hex in client_hexmap[ 'hex' ]:
                         
             # client has at least 2 duplicates
@@ -307,62 +302,78 @@ def diff_hex( ):
                 log_it( f"Handling duplicates for '{common_root}'\n" )
                 
                 # gather the index for each duplicate file of both endpoints
-                ndx_src = [ x for x in range(len( client_hexmap[ 'hex' ] ) ) if client_hexmap[ 'hex' ][ x ] == dst_hex ]                
+                ndx_src = [ x for x in range(len( client_hexmap[ 'hex' ] ) ) if client_hexmap[ 'hex' ][ x ] == dst_hex ]
                 x = 0
+                # [1]
                 
                 ndx_dst = [ x for x in range(len( cloud_hexmap[ 'hex' ] ) ) if cloud_hexmap[ 'hex' ][ x ] == dst_hex ]
                 x = 0
+                # [6, 8]   
                 
                 max_len = max( len( ndx_dst ), len( ndx_src ) )
                 
                 # 1-1 name refresher                              
                 try:                   
                     for x in range( max_len ):                    
-                        x = 0
+                        # refresh "x" on each iteration to access the first index of ndx_dst & ndx_src after removing on line 354 
+                        x = 0                        
                         
                         # can be invalid on client
                         dst_path_on_client = path.join( client, cloud_hexmap[ 'root' ][ ndx_dst[x] ], cloud_hexmap[ 'fname' ][ ndx_dst[x] ] )                        
-                        
+                     
                         # current cloud path pending validation
-                        dst_path = path.join( cloud, cloud_hexmap[ 'root' ][ ndx_dst[x] ], cloud_hexmap[ 'fname' ][ ndx_dst[x] ] )                        
+                        dst_path = path.join( cloud, cloud_hexmap[ 'root' ][ ndx_dst[x] ], cloud_hexmap[ 'fname' ][ ndx_dst[x] ] )
                         
-                        # should be finally on client
-                        src_path_on_cloud = path.join( cloud, client_hexmap[ 'root' ][ ndx_src[x] ], client_hexmap[ 'fname' ][ ndx_src[x] ] )
-                       
+                        # client full path to be mirrored if not yet
+                        src_path_on_cloud = path.join( cloud, client_hexmap[ 'root' ][ ndx_src[x] ], client_hexmap[ 'fname' ][ ndx_src[x] ] )                                  
                        
                         # for debugging
-                        #print(f"\n{dst_path} <<<<<<<<<<<<<< \n{dst_path_on_client} vs \n{src_path_on_cloud}\n")
+                        #print(f"\n{dst_path} <<<<<<<<<<<<<< \n{dst_path_on_client} vs \n{src_path_on_cloud}\n")                       
                         
-                        
-                        # REMOVE <<<<<<<< dst_path is an extra duplicate
+                        # REMOVE <<<<<<<< dst_path is an obsolete duplicate that exists on a different path than "src_path_on_cloud"
                         if not path.exists( dst_path_on_client ) and path.exists( src_path_on_cloud ) and src_path_on_cloud != dst_path:
                             remove( dst_path )
                             diff_counter += 1
                             log_it( f"\nDELETED extra duplicate {dst_path}\n" )                            
                             
-                        # rename if the current cloud path should not exist on client                       
+                        # RENAME <<<<<<<< if the current cloud path does not exist on client
                         elif not path.exists( dst_path_on_client ) and not path.exists( src_path_on_cloud ):
                             rename( dst_path, src_path_on_cloud )
+                            diff_counter += 1
                             log_it( f"\nRENAMED duplicate {dst_path} TO {src_path_on_cloud}\n" )
                        
-                        cloud_hexmap[ 'flag' ][ ndx_src[x] ] = 'Z'
-                        client_hexmap[ 'flag' ][ ndx_dst[x] ] = 'Z'
+                        cloud_hexmap[ 'flag' ][ ndx_dst[x] ] = 'Z'
+                        client_hexmap[ 'flag' ][ ndx_src[x] ] = 'Z'
                         
-                        ndx_src.remove( ndx_src[x] )
-                        ndx_dst.remove( ndx_dst[x] )
+                        del ndx_src[0], ndx_dst[0]
                         
                         
                 # one of the lists is bigger by at least 1 and the other is now empty
                 except IndexError as XX:
-                    # if ndx_dst aka cloud is 0, then client is the bigger list; the rest of the duplicate client files will be dumped during selective_dump_to_cloud()
-                    if len( ndx_dst ) == 0:
-                        continue                    
+
+                    # if ndx_dst is 0, then client has the bigger duplicate list; the rest of the duplicate client files will be dumped now
+                    if len( ndx_dst ) == 0:                        
+                        for ndx in ndx_src:                            
+                            try:
+                                new_path = path.join( client_hexmap[ 'root '][ ndx ], client_hexmap[ 'fname' ][ ndx ] )
+                                from_path = path.join( client, new_path )
+                                to_path = path.join( cloud, new_path )
+                                
+                                if not path.exists( to_path ):
+                                    copy2( from_path, to_path )
+                                    log_it( f"Copied {to_path}\n" )
+                                    
+                            except Exception as XXX:
+                                log_it( f"\n{XXX}\n" )
+                        continue           
+                        
                     # remove the remaining obsolete cloud duplicates
                     else:
                         for ndx in ndx_dst:
                             try:
                                 remove( path.join( cloud, cloud_hexmap[ 'root' ][ ndx ], cloud_hexmap[ 'fname' ][ ndx ] ) )
                                 log_it( f"\nDELETED extra duplicate {dst_path}\n" )
+                                
                             except FileNotFoundError:
                                 # the file was previously removed
                                 continue
