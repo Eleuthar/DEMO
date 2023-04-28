@@ -400,6 +400,7 @@ def diff_hex( ):
                 else:
                     new_path = path.join( cloud, client_hexmap[ 'root' ][ index ], client_hexmap[ 'fname' ][ index ] )
                     rename( fpath_on_cloud, new_path )
+                    diff_counter += 1
                     log_it( f"\nRENAMED {fpath_on_cloud} TO {new_path}" )
                 
              
@@ -453,6 +454,8 @@ def selective_dump_to_cloud( ):
 # potential conflict handled in the previous stage as directories have been already created
 # dumping remaining unflagged files
     
+    dump_counter = 0
+    
     global client_hexmap, cloud
        
     for q in range( len( client_hexmap[ 'hex' ] ) ):
@@ -467,7 +470,8 @@ def selective_dump_to_cloud( ):
             if not path.exists( dst ) and path.exists( src ):
                 try:
                     copy2( src, dst )
-                    log_it( f"{dst}\n" )                
+                    log_it( f"{dst}\n" ) 
+                    dump_counter += 1
                     
                 except OSError as XX:
                     if XX.errno == errno.ENOSPC:
@@ -476,7 +480,8 @@ def selective_dump_to_cloud( ):
                     
                 except Exception as X:
                     log_it( f"{X}\n" )
-    return
+    
+    return dump_counter
     
 
 def one_way_sync( ):
@@ -532,7 +537,7 @@ def one_way_sync( ):
         dump_counter = selective_dump_to_cloud( )
         
         if dump_counter == 0:
-                log_it( "\nNo action taken\n" )
+            log_it( "\nNo action taken\n" )
     
     sync_finish = datetime.now()
     
