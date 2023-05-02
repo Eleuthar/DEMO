@@ -41,11 +41,12 @@ class DirSync:
         self.cloud = cloud
         self.interval = interval
         self.log_path = log_path
+        self.client_hexmap = { }
+        self.cloud_hexmap = { }
         self.tree = { }
         self.tree[ client ] = set()
         self.tree[ cloud ] = set()
-        self.client_hexmap = { }
-        self.cloud_hexmap = { }
+        self.logger = None
 
 
     def setup_log_path( self ):
@@ -73,27 +74,28 @@ class DirSync:
             return True
 
 
-    def new_log_file( self, ymd_now ):
-        # File name format: dirSync_2023-04-18.txt    
+    def new_log_file( self ):
+        # File name format: dirSync_2023-04-18.txt        
+        ymd_now = datetime.now().strftime( '%Y-%m-%d' )
         log_name = f"dirSync_{ ymd_now }.txt"
-        log_path = path.join( self.log_path, log_name )
-        log_file = open( self.log_path, 'a', encoding = 'UTF-8' )    
+        full_log_path = path.join( self.log_path, log_name )
+        log_file = open( full_log_path, 'a', encoding = 'UTF-8' )
         return log_file
 
 
     def log_it( self, log_item ):
         print( log_item )
-        logger.write( log_item )
+        self.logger.write( log_item )
         return
 
 
     def reset_global( self ):        
         self.client_hexmap = { }
         self.cloud_hexmap = { }    
-        self.tree[ client ] = set( )
-        self.tree[ cloud ] = set( )
+        self.tree[ client ] = set()
+        self.tree[ cloud ] = set()
         return
-
+        
 
     def generate_file_hex( self, target, root, filename, blocksize=8192 ):
         hh = md5()
@@ -113,7 +115,7 @@ class DirSync:
             'flag' : []
         }    
         
-        log_it( f'\n\n\n\nHEXMAP for base root "{target}"\n{ 120 * "-"}' )    
+        self.log_it( f'\n\n\n\nHEXMAP for base root "{target}"\n{ 120 * "-"}' )    
         
         for directory in walk( target ):    
             # ( 0=dirname, 1=[folder basenames], 2=[files] )
@@ -130,17 +132,17 @@ class DirSync:
             for fname in directory[2]:
                 hexmap[ 'root' ].append( root )
                 hexmap[ 'fname' ].append( fname )
-                hx = generate_file_hex( target, root, fname )
+                hx = self.generate_file_hex( target, root, fname )
                 hexmap[ 'hex' ].append( hx )
                 hexmap[ 'flag' ].append(None)            
-                log_it( f"\n{ path.join( root, fname ) }" )
-                log_it( f"\n{hx}" )
-                log_it( f"\n{ 120 * '-'}" )            
+                self.log_it( f"\n{ path.join( root, fname ) }" )
+                self.log_it( f"\n{hx}" )
+                self.log_it( f"\n{ 120 * '-'}" )            
 
         return hexmap
         
 
-    def mk_upper_dir( root ):
+    def mk_upper_dir( self, root ):
         current_dir = path.basename( root )
          
         # remove ending "\\" or "/"
@@ -155,21 +157,19 @@ class DirSync:
         if not path.exists( upper_path ):
             try:
                 mkdir( upper_path )
-                log_it( f"\nCreated directory {upper_dir}\n" )
+                self.log_it( f"\nCreated directory {upper_dir}\n" )
                 mkdir( root )
-                log_it( f"\nCreated directory {root}\n" )
+                self.log_it( f"\nCreated directory {root}\n" )
                 return
                 
             except Exception as X:
-                log_it( f"{X}" )
+                self.log_it( f"{X}" )
         else:                    
             return
             
 
-    def new_dir_cloud():
+    def new_dir_cloud( self ):
 
-        global tree, cloud, client
-        
         new_dir_counter = 0
 
         for client_dir in self.tree[ client ]:
@@ -178,7 +178,7 @@ class DirSync:
             if not path.exists( cloud_dirpath ):      
                 try:
                     mkdir( cloud_dirpath )
-                    log_it( f"\n{cloud_dirpath} - OK\n" )
+                    self.log_it( f"\n{cloud_dirpath} - OK\n" )
                     new_dir_counter += 1
                     
                 except Exception as XX:
@@ -190,26 +190,26 @@ class DirSync:
         return new_dir_counter
         
        
-    def rm_lower( dirpath ):
+    def rm_lower( self, dirpath ):
         if path.exists( dirpath ) and len( listdir( dirpath ) ) != 0:
             
             for dirname in listdir( dirpath ):
                 try:
                     child_dir = path.join( dirpath, dirname )
                     rmdir( child_dir )
-                    log_it( f"\nRemoved directory {child_dir}\\\n" ) 
+                    self.log_it( f"\nRemoved directory {child_dir}\\\n" ) 
                 
                 except OSError:
                     # dir not empty
                     rm_lower( child_dir )
-                    log_it( f"\nRemoved directory {child_dir}\\\n" )  
+                    self.log_it( f"\nRemoved directory {child_dir}\\\n" )  
             
             # remove parent after clearing its children
             rmdir( dirpath )
-            log_it( f"\nRemoved directory {dirpath}\\\n" ) 
+            self.log_it( f"\nRemoved directory {dirpath}\\\n" ) 
                 
 
-    def rm_obsolete_dir( ):
+    def rm_obsolete_dir( self ):
     # applicable only for cloud directories against client
                 
         rm_counter = 0
@@ -222,21 +222,22 @@ class DirSync:
                     rm_target = path.join( self.cloud, folder )
                     rmdir( rm_target )
                     rm_counter += 1
-                    log_it( f"\nRemoved directory {rm_target}\\\n" )
+                    self.log_it( f"\nRemoved directory {rm_target}\\\n" )
+                
                 except OSError:
                     # dir not empty
                     rm_lower( rm_target )
                     rm_counter += 1
-                    log_it( f"\nRemoved directory {rm_target}\\\n" )                
+                    self.log_it( f"\nRemoved directory {rm_target}\\\n" )                
                     
                 except Exception as X:            
                     # is already deleted
-                    log_it( f"\n{ X }\n" )
+                    self.log_it( f"\n{ X }\n" )
             
         return rm_counter
 
 
-    def diff_hex( ):
+    def diff_hex( self ):
     # iterate each cloud file against client and mark handled for later dump
         
         diff_counter = 0
@@ -250,7 +251,7 @@ class DirSync:
             common_root = path.join( dst_root, dst_fname )
             fpath_on_cloud = path.join( self.cloud, common_root )        
             expected_path_on_client = path.join( self.client, common_root )   
-             
+            
             # skip flagged items handled during duplication handling scenario 
             if self.cloud_hexmap[ 'flag' ][ j ] != None:
                 continue            
@@ -264,7 +265,7 @@ class DirSync:
                 # get the matching client's file index by "client_hexmap[ 'hex' ].index( dst_hex )"
                 if ( self.client_hexmap[ 'hex' ].count( dst_hex ) > 1 or self.cloud_hexmap[ 'hex' ].count( dst_hex ) > 1 ):
                 
-                    log_it( f"Handling duplicates for '{common_root}'\n" )
+                    self.log_it( f"Handling duplicates for '{common_root}'\n" )
                     
                     # gather the index for each duplicate file of both endpoints
                     ndx_src = [ x for x in range(len( self.client_hexmap[ 'hex' ] ) ) if self.client_hexmap[ 'hex' ][ x ] == dst_hex ]
@@ -297,13 +298,13 @@ class DirSync:
                             if not path.exists( dst_path_on_client ) and path.exists( src_path_on_cloud ) and src_path_on_cloud != dst_path:
                                 remove( dst_path )
                                 diff_counter += 1
-                                log_it( f"\nDELETED extra duplicate {dst_path}\n" )                            
+                                self.log_it( f"\nDELETED extra duplicate {dst_path}\n" )                            
                                 
                             # RENAME <<<<<<<< if the current cloud path does not exist on client
                             elif not path.exists( dst_path_on_client ) and not path.exists( src_path_on_cloud ):
                                 rename( dst_path, src_path_on_cloud )
                                 diff_counter += 1
-                                log_it( f"\nRENAMED duplicate {dst_path} TO {src_path_on_cloud}\n" )
+                                self.log_it( f"\nRENAMED duplicate {dst_path} TO {src_path_on_cloud}\n" )
                            
                             self.cloud_hexmap[ 'flag' ][ ndx_dst[x] ] = 'Z'
                             self.client_hexmap[ 'flag' ][ ndx_src[x] ] = 'Z'
@@ -323,11 +324,11 @@ class DirSync:
                                     
                                     if not path.exists( to_path ):
                                         copy2( from_path, to_path )
-                                        log_it( f"Copied {to_path}\n" )
+                                        self.log_it( f"Copied {to_path}\n" )
                                         self.client_hexmap[ 'flag' ][ ndx ] = 'Z'
                                         
                                 except Exception as XXX:
-                                    log_it( f"\n{XXX}\n" )                                   
+                                    self.log_it( f"\n{XXX}\n" )                                   
                             
                         # remove the remaining obsolete cloud duplicates
                         else:
@@ -335,14 +336,14 @@ class DirSync:
                                 try:
                                     remove( path.join( self.cloud, self.cloud_hexmap[ 'root' ][ ndx ], self.cloud_hexmap[ 'fname' ][ ndx ] ) )
                                     self.cloud_hexmap[ 'flag' ][ ndx ] = 'Z'
-                                    log_it( f"\nDELETED extra duplicate {dst_path}\n" )
+                                    self.log_it( f"\nDELETED extra duplicate {dst_path}\n" )
                                     
                                 except FileNotFoundError:
                                     # the file was previously removed
                                     pass                        
                             
                     except Exception as X:
-                        log_it( f"\n{X}\n")
+                        self.log_it( f"\n{X}\n")
                     
                     finally:
                         continue
@@ -355,14 +356,14 @@ class DirSync:
                     
                     # PASS <<<<< cloud path matching
                     if path.exists( expected_path_on_client ):    
-                        log_it( f"\nPASS {common_root}\n" )
+                        self.log_it( f"\nPASS {common_root}\n" )
                     
                     # RENAME <<<<< path not matching
                     else:
                         new_path = path.join( self.cloud, self.client_hexmap[ 'root' ][ index ], self.client_hexmap[ 'fname' ][ index ] )
                         rename( fpath_on_cloud, new_path )
                         diff_counter += 1
-                        log_it( f"\nRENAMED {fpath_on_cloud} TO {new_path}" )
+                        self.log_it( f"\nRENAMED {fpath_on_cloud} TO {new_path}" )
                     
                  
             # no hex match
@@ -370,14 +371,14 @@ class DirSync:
                 try:
                     remove( fpath_on_cloud )
                     diff_counter += 1
-                    log_it( f"\nDELETED {fpath_on_cloud}\n" )
+                    self.log_it( f"\nDELETED {fpath_on_cloud}\n" )
                     
                 #except OSError as XX:
                 #    if XX.errno == 2:
                 #        pass
                     
                 except Exception as X:
-                    log_it( f"{X}\n" )
+                    self.log_it( f"{X}\n" )
                     
                 finally:
                     continue 
@@ -385,7 +386,7 @@ class DirSync:
         return diff_counter
 
 
-    def full_dump_to_cloud( ):
+    def full_dump_to_cloud( self ):
 
         for item in listdir( self.client ):
             try:
@@ -397,20 +398,20 @@ class DirSync:
                 else:
                     copy2( src, dst )
                     
-                log_it( f"Copied { item }\n" )
+                self.log_it( f"Copied { item }\n" )
                 
             except OSError as XX:
                     if XX.errno == errno.ENOSPC:
-                        log_it( f"{strerror( XX.errno )}\n" )
+                        self.log_it( f"{strerror( XX.errno )}\n" )
                         exit()
                 
             except Exception as X:
-                log_it(  f"Error: { X }\n" )
+                self.log_it(  f"Error: { X }\n" )
                 
         return
 
 
-    def selective_dump_to_cloud( ):
+    def selective_dump_to_cloud( self ):
     # potential conflict handled in the previous stage as directories have been already created
     # dumping remaining unflagged files
         
@@ -428,112 +429,109 @@ class DirSync:
                 if not path.exists( dst ) and path.exists( src ):
                     try:
                         copy2( src, dst )
-                        log_it( f"{dst}\n" ) 
+                        self.log_it( f"{dst}\n" ) 
                         dump_counter += 1
                         
                     except OSError as XX:
                         if XX.errno == errno.ENOSPC:
-                            log_it( f"{strerror( XX.errno )}\n" )
+                            self.log_it( f"{strerror( XX.errno )}\n" )
                             exit()
                         
                     except Exception as X:
-                        log_it( f"{X}\n" )
+                        self.log_it( f"{X}\n" )
         
         return dump_counter
         
 
-    def one_way_sync( ):
+    def one_way_sync( self ):
     # triggered by main if hexmap diff
         
         sync_start = datetime.now()
          
-        log_it( f"Starting sync at { datetime.now().strftime( '%y-%m-%d %H:%M' ) }\n" )
+        self.log_it( f"Starting sync at { datetime.now().strftime( '%y-%m-%d %H:%M' ) }\n" )
         
         # get the source directory hash map
-        self.client_hexmap = generate_hexmap( client )
+        self.client_hexmap = self.generate_hexmap( client )
         
         # initial full dump to cloud storage
         if len( listdir( self.cloud ) ) == 0 and len( listdir( self.client ) ) != 0:
-            log_it( f"\n\n\nPERFORMING FULL SYNC\n\n" )
-            full_dump_to_cloud( )
+            self.log_it( f"\n\n\nPERFORMING FULL SYNC\n\n" )
+            self.full_dump_to_cloud()
         else:
             # get the destination directory hash map
-            self.cloud_hexmap = generate_hexmap( self.cloud )
+            self.cloud_hexmap = self.generate_hexmap( self.cloud )
             
             # both tree sets have only the common root extracted during hexmap generation
-            log_it( "\n\n\nUPDATING DESTINATION TREE\n`````````````````````````\n" )
+            self.log_it( "\n\n\nUPDATING DESTINATION TREE\n`````````````````````````\n" )
             
-            new_dir_counter = new_dir_cloud()
+            new_dir_counter = self.new_dir_cloud()
             
             if new_dir_counter == 0:
-                log_it( "\nNo action taken\n" )
+                self.log_it( "\nNo action taken\n" )
             
                     
             # cleanup on cloud storage
-            log_it( "\n\n\n\nFILE CLEANUP\n````````````\n" )
+            self.log_it( "\n\n\n\nFILE CLEANUP\n````````````\n" )
             
             cleanup_counter = diff_hex()
             
             if cleanup_counter == 0:        
-                log_it( "\nNo action taken\n" )
+                self.log_it( "\nNo action taken\n" )
             
             
             # remove dirs after file cleanup
-            log_it( "\n\n\nREMOVING OBSOLETE DIRECTORIES\n``````````````````````````````\n" )
+            self.log_it( "\n\n\nREMOVING OBSOLETE DIRECTORIES\n``````````````````````````````\n" )
             
             rm_dir_counter = rm_obsolete_dir()
         
             if rm_dir_counter == 0:
-                log_it( "\nNo action taken\n" )
+                self.log_it( "\nNo action taken\n" )
                 
                 
             # dump left-overs from client
-            log_it( "\n\n\nADDING NEW CONTENT\n```````````````````\n" )
+            self.log_it( "\n\n\nADDING NEW CONTENT\n```````````````````\n" )
             
-            dump_counter = selective_dump_to_cloud( )
+            dump_counter = self.selective_dump_to_cloud()
             
             if dump_counter == 0:
-                log_it( "\nNo action taken\n" )
+                self.log_it( "\nNo action taken\n" )
         
         sync_finish = datetime.now()
         
-        log_it( f"\n\n\nFinished sync at { datetime.now().strftime( '%y-%m-%d %H:%M' ) }\n" )
+        self.log_it( f"\n\n\nFinished sync at { datetime.now().strftime( '%y-%m-%d %H:%M' ) }\n" )
         
         return ( sync_finish - sync_start ).seconds
 
         
-    def main( log_path_set=False, logger=None ):
+def main_runner( dirSync, log_path_set=False ):
     
-        # log file timeframe
-        ymd_now = datetime.now().strftime( '%Y-%m-%d' )    
-        
-        # setup log file
-        if not log_path_set:
-            log_path_set = setup_log_path( log_path )
-        
-        logger = new_log_file( log_path, ymd_now )
-           
-        # sync folders
-        sync_duration = one_way_sync( )    
-        
-        # determine last sync duration to cut from the interval sleep time until next sync 
-        sync_delta = interval - sync_duration
-        
-        log_it( f"\nLast sync took { sync_duration } seconds.\n\n\n{80 * '~'}\n\n\n\n\n\n" )
-        
-        # close log file to allow reading the last sync events
-        logger.close()
-        
-        # reset hexmap & tree
-        reset_global()
-         
-        if sync_delta <= 0:
-            sleep( interval )
-            main( log_path_set )
-        else:
-            sleep( sync_delta )
-            main( log_path_set )
-        
+    # setup log file
+    if not log_path_set:
+        log_path_set = dirSync.setup_log_path()
+    
+    dirSync.logger = dirSync.new_log_file()
+    
+    # sync folders
+    sync_duration = dirSync.one_way_sync()    
+    
+    # determine last sync duration to cut from the interval sleep time until next sync 
+    sync_delta = dirSync.interval - sync_duration
+    
+    dirSync.log_it( f"\nLast sync took { sync_duration } seconds.\n\n\n{80 * '~'}\n\n\n\n\n\n" )
+    
+    # close log file to allow reading the last sync events
+    logger.close()
+    
+    # reset hexmap & tree
+    reset_global()
+     
+    if sync_delta <= 0:
+        sleep( interval )
+        main( log_path_set )
+    else:
+        sleep( sync_delta )
+        main( log_path_set )
+    
     
 if __name__ == '__main__':
     
@@ -552,7 +550,7 @@ if __name__ == '__main__':
     # opts = [long form], args = [short form]
     opts, args = getopt( argv[1:], "s:d:i:l:",  [ "source_path=" , "destination_path=", "interval=", "log=" ] )
 
-
+    # build arguments for DirSync constructor
     try:
         for opt, arg in opts + args:
             if opt in [ "-s", "--source_path" ]:
@@ -585,4 +583,4 @@ if __name__ == '__main__':
     
     dir_sync = DirSync( client, cloud, interval, log_path )
     # On lack of disk space the program will exit
-    dir_sync.main()
+    main_runner( dir_sync )
