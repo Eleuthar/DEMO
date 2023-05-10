@@ -138,7 +138,7 @@ class DirSync:
         return hh.hexdigest()
 
     @staticmethod
-    def generate_hexmap(target: pathlib.Path, logger) -> (dict[str, list], set):
+    def generate_hexmap(target: pathlib.Path, logger: IO) -> tuple[dict[str, list], set]:
         """
         Map every single filename under the target directory to its own hex digest & path on the same index level.
         Gather unique root paths.
@@ -159,16 +159,12 @@ class DirSync:
             Set of empty & non-empty directories that will be used for the removal of obsolete directories
         """
         target_tree = set()
-        hexmap = {"root": [], "fname": [], "hex": [], "flag": []}
+        hexmap: dict[str, list] = {"root": [], "fname": [], "hex": [], "flag": []}
         DirSync.log_it(logger, f"\n\n\n\nHEXMAP for base root '{target}'\n{120 * '-'}")
         for directory in walk(target):
             # directory[0] = dirname: str, directory[1] = [folder basenames], directory[2]=[filenames]
-            common_root = directory[0][len(target.__str__()) :]
-            common_root = pathlib.Path(
-                common_root.lstrip("\\")
-                if "\\" in common_root
-                else common_root.lstrip("/")
-            )
+            common_root = pathlib.Path(directory[0][len(target.__str__())+1:])
+
             # make a set of all empty and non-empty folders
             target_tree.add(common_root)
             # map only non-empty folders to their children
