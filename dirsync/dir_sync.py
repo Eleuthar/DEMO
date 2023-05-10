@@ -11,7 +11,7 @@ r"""
 
 import argparse
 from hashlib import md5
-import pathlib
+from pathlib import Path
 from os import mkdir, rename, remove, walk, listdir, strerror
 from shutil import copytree, copy2, rmtree
 from datetime import datetime
@@ -25,12 +25,13 @@ class DirSync:
 
     def __init__(
         self,
-        client: pathlib.Path,
-        cloud: pathlib.Path,
+        client: Path,
+        cloud: Path,
         interval: int,
         time_unit: str,
-        log_path: pathlib.Path,
+        log_path: Path,
     ):
+        # resolve relative paths
         self.client = client.resolve()
         self.cloud = cloud.resolve()
         self.interval = interval * DirSync.timeframe[time_unit.upper()]
@@ -42,13 +43,13 @@ class DirSync:
         parser.add_argument(
             "-s",
             "--source_path",
-            type=pathlib.Path,
+            type=Path,
             help="The source directory that needs to be replicated",
         )
         parser.add_argument(
             "-d",
             "--destination_path",
-            type=pathlib.Path,
+            type=Path,
             help="The destination directory that will replicate the " "source",
         )
         parser.add_argument(
@@ -69,18 +70,19 @@ class DirSync:
         parser.add_argument(
             "-l",
             "--log_path",
-            type=pathlib.Path,
+            type=Path,
             help="The directory where logs will be stored",
         )
+        input_argz = parser.parse_args()
 
-        if None in parser.parse_args().__dict__.values():
+        if None in input_argz.__dict__.values():
             print(__doc__)
             exit()
 
-        return parser.parse_args()
+        return input_argz
 
     @staticmethod
-    def setup_log_path(log_path: pathlib.Path):
+    def setup_log_path(log_path: Path):
         """
         Validate existing log directory path or create a new one if the parent exists
         """
@@ -108,7 +110,7 @@ class DirSync:
         """
         ymd_now = now.strftime("%Y-%m-%d")
         log_name = f"dirSync_{ymd_now}.txt"
-        full_log_path = pathlib.Path.joinpath(log_path, log_name)
+        full_log_path = Path.joinpath(log_path, log_name)
         return open(full_log_path, "a", encoding="UTF-8")
 
     @staticmethod
@@ -118,8 +120,8 @@ class DirSync:
 
     @staticmethod
     def generate_file_hex(
-        target: pathlib.Path,
-        common_root: pathlib.Path,
+        target: Path,
+        common_root: Path,
         filename: str,
         blocksize: int = 8192,
     ) -> str:
@@ -132,13 +134,13 @@ class DirSync:
         :return: Cryptographic hash digest
         """
         hh = md5()
-        with open(pathlib.Path.joinpath(target, common_root, filename), "rb") as f:
+        with open(Path.joinpath(target, common_root, filename), "rb") as f:
             while buff := f.read(blocksize):
                 hh.update(buff)
         return hh.hexdigest()
 
     @staticmethod
-    def generate_hexmap(target: pathlib.Path, logger: IO) -> tuple[dict[str, list], set]:
+    def generate_hexmap(target: Path, logger: IO) -> tuple[dict[str, list], set]:
         """
         Map every single filename under the target directory to its own hex digest & path on the same index level.
         Gather unique root paths.
@@ -163,19 +165,19 @@ class DirSync:
         DirSync.log_it(logger, f"\n\n\n\nHEXMAP for base root '{target}'\n{120 * '-'}")
         for directory in walk(target):
             # directory[0] = dirname: str, directory[1] = [folder basenames], directory[2]=[filenames]
-            common_root = pathlib.Path(directory[0][len(target.__str__())+1:])
+            common_root = Path(directory[0][len(target.__str__())+1:])
 
             # make a set of all empty and non-empty folders
             target_tree.add(common_root)
             # map only non-empty folders to their children
             for fname in directory[2]:
                 hexmap["root"].append(common_root)
-                hexmap["fname"].append(pathlib.Path(fname))
+                hexmap["fname"].append(Path(fname))
                 hx = DirSync.generate_file_hex(target, common_root, fname)
                 hexmap["hex"].append(hx)
                 hexmap["flag"].append(None)
 
-                DirSync.log_it(logger, f"\n{pathlib.Path.joinpath(common_root, fname)}")
+                DirSync.log_it(logger, f"\n{Path.joinpath(common_root, fname)}")
                 DirSync.log_it(logger, f"\n{hx}")
                 DirSync.log_it(logger, f"\n{120 * '-'}")
         return hexmap, target_tree
@@ -190,15 +192,15 @@ class DirSync:
         """
         action_counter = 0
         for dirpath in client_tree:
-            next_level = pathlib.Path("")
+            next_level = Path("")
             for dirname in dirpath.parts:
                 # next_level is built progressively to allow mkdir without error
-                next_level = pathlib.Path.joinpath(next_level, dirname)
-                current_path = pathlib.Path.joinpath(self.cloud, next_level)
-                if not pathlib.Path.exists(current_path):
+                next_level = Path.joinpath(next_level, dirname)
+                current_path = Path.joinpath(self.cloud, next_level)
+                if not current_path.exists():
                     mkdir(current_path)
                     DirSync.log_it(logger, f"\nCreated '{current_path}\\' \n")
-                    action_counter += 1
+                    action_counter = 1
         return action_counter
 
     def rm_obsolete_dir(self, cloud_tree, logger):
@@ -211,28 +213,28 @@ class DirSync:
         """
         rm_counter = 0
         for cloud_dirpath in cloud_tree:
-            cloud_path_on_client = pathlib.Path.joinpath(self.client, cloud_dirpath)
+            rmtree_target = Path.joinpath(self.cloud, cloud_dirpath)
+            cloud_path_on_client = Path.joinpath(self.client, cloud_dirpath)
             # handle only joined paths that are not the base common root
-            if cloud_path_on_client != self.client and not pathlib.Path.exists(
-                cloud_path_on_client
+            if (
+                cloud_path_on_client != self.client
+                and not cloud_path_on_client.exists()
+                and rmtree_target.exists()
             ):
-                try:
-                    rm_target = pathlib.Path.joinpath(self.cloud, cloud_dirpath)
-                    rmtree(rm_target, ignore_errors=True)
-                    rm_counter += 1
-                    DirSync.log_it(logger, f"\nRemoved tree of '{rm_target}\\' \n")
-                except Exception as X:
-                    DirSync.log_it(logger, f"\n{X}\n")
-            return rm_counter
+                rmtree(rmtree_target, ignore_errors=True)
+                rm_counter = 1
+                DirSync.log_it(logger, f"\nRemoved tree of '{rmtree_target}\\' \n")
+
+        return rm_counter
 
     def dump_client_copies(self, ndx_on_src, client_hexmap, logger) -> int:
         diff_counter = 0
         for ndx in ndx_on_src:
-            new_path = pathlib.Path.joinpath(
+            new_path = Path.joinpath(
                 client_hexmap["root"][ndx], client_hexmap["fname"][ndx]
             )
-            from_path = pathlib.Path.joinpath(self.client, new_path)
-            to_path = pathlib.Path.joinpath(self.cloud, new_path)
+            from_path = Path.joinpath(self.client, new_path)
+            to_path = Path.joinpath(self.cloud, new_path)
 
             if not to_path.exists():
                 copy2(from_path, to_path)
@@ -246,7 +248,7 @@ class DirSync:
     ) -> int:
         diff_counter = 0
         for ndx in ndx_on_dst:
-            dst_dup = pathlib.Path.joinpath(
+            dst_dup = Path.joinpath(
                 self.cloud, cloud_hexmap["root"][ndx], cloud_hexmap["fname"][ndx]
             )
             if dst_dup.exists():
@@ -286,19 +288,19 @@ class DirSync:
         try:
             for x in range(max_len):
                 # can be invalid on client
-                dst_path_on_client = pathlib.Path.joinpath(
+                dst_path_on_client = Path.joinpath(
                     self.client,
                     cloud_hexmap["root"][ndx_on_dst[x]],
                     cloud_hexmap["fname"][ndx_on_dst[x]],
                 )
                 # current cloud path pending validation
-                dst_path = pathlib.Path.joinpath(
+                dst_path = Path.joinpath(
                     self.cloud,
                     cloud_hexmap["root"][ndx_on_dst[x]],
                     cloud_hexmap["fname"][ndx_on_dst[x]],
                 )
                 # client full path to be mirrored if not yet
-                src_path_on_cloud = pathlib.Path.joinpath(
+                src_path_on_cloud = Path.joinpath(
                     self.cloud,
                     client_hexmap["root"][ndx_on_src[x]],
                     client_hexmap["fname"][ndx_on_src[x]],
@@ -307,10 +309,10 @@ class DirSync:
 
                 # REMOVE << dst_path is an obsolete duplicate that exists on a different path
                 if (
-                    not pathlib.Path.exists(dst_path_on_client)
-                    and pathlib.Path.exists(src_path_on_cloud)
+                    not dst_path_on_client.exists()
+                    and src_path_on_cloud.exists()
                     and src_path_on_cloud != dst_path
-                    and pathlib.Path.exists(dst_path)
+                    and dst_path.exists()
                 ):
                     remove(dst_path)
                     diff_counter = 1
@@ -319,9 +321,10 @@ class DirSync:
                     )
 
                 # RENAME << if the current cloud path does not exist on client
-                elif not pathlib.Path.exists(
-                    dst_path_on_client
-                ) and not pathlib.Path.exists(src_path_on_cloud):
+                elif (
+                    not dst_path_on_client.exists()
+                    and not src_path_on_cloud.exists()
+                ):
                     rename(dst_path, src_path_on_cloud)
                     diff_counter = 1
                     DirSync.log_it(
@@ -360,9 +363,9 @@ class DirSync:
             dst_root = cloud_hexmap["root"][j]
             dst_fname = cloud_hexmap["fname"][j]
             dst_hex = cloud_hexmap["hex"][j]
-            common_root = pathlib.Path.joinpath(dst_root, dst_fname)
-            fpath_on_cloud = pathlib.Path.joinpath(self.cloud, common_root)
-            expected_path_on_client = pathlib.Path.joinpath(self.client, common_root)
+            common_root = Path.joinpath(dst_root, dst_fname)
+            fpath_on_cloud = Path.joinpath(self.cloud, common_root)
+            expected_path_on_client = Path.joinpath(self.client, common_root)
 
             # skip flagged items handled during duplication handling scenario
             if cloud_hexmap["flag"][j] is not None:
@@ -378,7 +381,7 @@ class DirSync:
                     or cloud_hexmap["hex"].count(dst_hex) > 1
                 ):
                     DirSync.log_it(logger, f"Handling duplicates for '{common_root}'\n")
-                    diff_counter += self.handle_duplicates(
+                    diff_counter = self.handle_duplicates(
                         dst_hex, client_hexmap, cloud_hexmap, logger
                     )
                     continue
@@ -388,18 +391,18 @@ class DirSync:
                     index = client_hexmap["hex"].index(dst_hex)
                     client_hexmap["flag"][index] = "Z"
                     # cloud path matching << PASS
-                    if pathlib.Path.exists(expected_path_on_client):
+                    if expected_path_on_client.exists():
                         DirSync.log_it(logger, f"\nPASS {common_root}\n")
 
                     # path not matching << RENAME
                     else:
-                        new_path = pathlib.Path.joinpath(
+                        new_path = Path.joinpath(
                             self.cloud,
                             client_hexmap["root"][index],
                             client_hexmap["fname"][index],
                         )
                         rename(fpath_on_cloud, new_path)
-                        diff_counter += 1
+                        diff_counter = 1
                         DirSync.log_it(
                             logger, f"\nRENAMED {fpath_on_cloud} TO {new_path}"
                         )
@@ -407,7 +410,7 @@ class DirSync:
             # no hex match << REMOVE
             else:
                 remove(fpath_on_cloud)
-                diff_counter += 1
+                diff_counter = 1
                 DirSync.log_it(logger, f"\nDELETED {fpath_on_cloud}\n")
                 continue
 
@@ -434,14 +437,14 @@ class DirSync:
             if client_hexmap["flag"][q] is None:
                 root = client_hexmap["root"][q]
                 fname = client_hexmap["fname"][q]
-                src = pathlib.Path.joinpath(self.client, root, fname)
-                dst = pathlib.Path.joinpath(self.cloud, root, fname)
+                src = Path.joinpath(self.client, root, fname)
+                dst = Path.joinpath(self.cloud, root, fname)
 
-                if not pathlib.Path.exists(dst) and pathlib.Path.exists(src):
+                if not dst.exists() and src.exists():
                     try:
                         copy2(src, dst)
                         DirSync.log_it(logger, f"{dst}\n")
-                        dump_counter += 1
+                        dump_counter = 1
 
                     except OSError as XX:
                         if XX.errno == errno.ENOSPC:
