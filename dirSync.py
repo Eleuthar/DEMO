@@ -10,6 +10,7 @@ r"""
 """
 
 import argparse
+import pdb
 from hashlib import md5
 import pathlib
 from os import mkdir, rename, remove, walk, listdir, strerror
@@ -155,20 +156,21 @@ class DirSync:
         for directory in walk(target):
             # directory[0] = dirname: str, directory[1] = [folder basenames], directory[2]=[filenames]
             common_root = directory[0][len(target.__str__()):]
-            common_root = (
+            common_root = pathlib.Path(
                 common_root.lstrip("\\")
                 if "\\" in common_root
                 else common_root.lstrip("/")
             )
             # make a set of all empty and non-empty folders
-            target_tree.add(pathlib.Path(common_root))
+            target_tree.add(common_root)
             # map only non-empty folders to their children
             for fname in directory[2]:
                 hexmap["root"].append(common_root)
-                hexmap["fname"].append(fname)
+                hexmap["fname"].append(pathlib.Path(fname))
                 hx = DirSync.generate_file_hex(target, common_root, fname)
                 hexmap["hex"].append(hx)
                 hexmap["flag"].append(None)
+
                 DirSync.log_it(logger, f"\n{pathlib.Path.joinpath(common_root, fname)}")
                 DirSync.log_it(logger, f"\n{hx}")
                 DirSync.log_it(logger, f"\n{120 * '-'}")
@@ -529,7 +531,7 @@ def main_runner(dir_sync: DirSync):
 if __name__ == "__main__":
     argz = DirSync.validate_arg()
     dir_sync = DirSync(
-        argz.client, argz.cloud, argz.interval, argz.time_unit, argz.log_path
+        argz.source_path, argz.destination_path, argz.interval, argz.time_unit, argz.log_path
     )
     while True:
         # On lack of disk space the program will exit
