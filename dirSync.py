@@ -24,12 +24,17 @@ class DirSync:
     timeframe = {"S": 1, "M": 60, "H": 3600, "D": 86400}
 
     def __init__(
-        self, client: str, cloud: str, interval: int, time_unit: str, log_path: str
+        self,
+        client: pathlib.Path,
+        cloud: pathlib.Path,
+        interval: int,
+        time_unit: str,
+        log_path: pathlib.Path,
     ):
-        self.client = pathlib.Path(client).resolve()
-        self.cloud = pathlib.Path(cloud).resolve()
+        self.client = client.resolve()
+        self.cloud = cloud.resolve()
         self.interval = interval * DirSync.timeframe[time_unit.upper()]
-        self.log_path = pathlib.Path(log_path).resolve()
+        self.log_path = log_path.resolve()
 
     @staticmethod
     def validate_arg():
@@ -37,13 +42,13 @@ class DirSync:
         parser.add_argument(
             "-s",
             "--source_path",
-            type=str,
+            type=pathlib.Path,
             help="The source directory that needs to be replicated",
         )
         parser.add_argument(
             "-d",
             "--destination_path",
-            type=str,
+            type=pathlib.Path,
             help="The destination directory that will replicate the " "source",
         )
         parser.add_argument(
@@ -62,7 +67,10 @@ class DirSync:
             ),
         )
         parser.add_argument(
-            "-l", "--log_path", type=str, help="The directory where logs will be stored"
+            "-l",
+            "--log_path",
+            type=pathlib.Path,
+            help="The directory where logs will be stored",
         )
 
         if None in parser.parse_args().__dict__.values():
@@ -72,7 +80,7 @@ class DirSync:
         return parser.parse_args()
 
     @staticmethod
-    def setup_log_path(log_path):
+    def setup_log_path(log_path: pathlib.Path):
         """
         Validate existing log directory path or create a new one if the parent exists
         """
@@ -141,12 +149,13 @@ class DirSync:
                 root[j] = full path of the parent up to the common root
                 fname[j] = file basename
                 hex[j] = generated hash digest
-                flag[j] initialized to None, but later updated to 'Z' during comparison of source &
-                   destination within diff_hex method.
-                The flag is necessary in the multiple duplication scenario, if many big files with the same digest are
-                   duplicated(same or new name) intentionally on source directory.
-                Using this flag will avoid unnecessary CPU workload for deleting then later copying the same file
+                flag[j] = None
+                   but later updated to 'Z' during comparison of source & destination within diff_hex method.
+                   The flag is necessary in the multiple duplication scenario, if many big files with the same digest
+                   are duplicated(same or new name) intentionally on source directory.
+                   Using this flag will avoid unnecessary CPU workload for deleting then later copying the same file
                    on another destination location
+
             Set of empty & non-empty directories that will be used for the removal of obsolete directories
         """
         target_tree = set()
@@ -154,7 +163,7 @@ class DirSync:
         DirSync.log_it(logger, f"\n\n\n\nHEXMAP for base root '{target}'\n{120 * '-'}")
         for directory in walk(target):
             # directory[0] = dirname: str, directory[1] = [folder basenames], directory[2]=[filenames]
-            common_root = directory[0][len(target.__str__()):]
+            common_root = directory[0][len(target.__str__()) :]
             common_root = pathlib.Path(
                 common_root.lstrip("\\")
                 if "\\" in common_root
