@@ -10,7 +10,6 @@ r"""
 """
 
 import argparse
-import pdb
 from hashlib import md5
 from pathlib import Path
 from os import mkdir, rename, remove, walk, listdir, strerror
