@@ -10,6 +10,7 @@ r"""
 """
 
 import argparse
+import pdb
 from hashlib import md5
 from pathlib import Path
 from os import mkdir, rename, remove, walk, listdir, strerror
@@ -24,12 +25,12 @@ class DirSync:
     timeframe = {"S": 1, "M": 60, "H": 3600, "D": 86400}
 
     def __init__(
-            self,
-            source: Path,
-            destination: Path,
-            interval: int,
-            time_unit: str,
-            log_path: Path,
+        self,
+        source: Path,
+        destination: Path,
+        interval: int,
+        time_unit: str,
+        log_path: Path,
     ):
         # resolve relative paths
         self.source = source.resolve()
@@ -120,10 +121,10 @@ class DirSync:
 
     @staticmethod
     def generate_file_hex(
-            target: Path,
-            common_root: Path,
-            filename: str,
-            blocksize: int = 8192,
+        target: Path,
+        common_root: Path,
+        filename: str,
+        blocksize: int = 8192,
     ) -> str:
         """
         Generate a file's hash digest
@@ -197,7 +198,7 @@ class DirSync:
                 current_path = Path.joinpath(self.destination, next_level)
                 if not current_path.exists():
                     mkdir(current_path)
-                    DirSync.log_it(logger, f"Created '{current_path}\\' \n")
+                    DirSync.log_it(logger, f"\nCreated '{current_path}\\' \n")
 
     def rm_obsolete_dir(self, destination_tree: set[Path], logger: IO):
         """
@@ -217,7 +218,7 @@ class DirSync:
                 and rmtree_target.exists()
             ):
                 rmtree(rmtree_target, ignore_errors=True)
-                DirSync.log_it(logger, f"Removed tree of '{rmtree_target}\\' \n")
+                DirSync.log_it(logger, f"\nRemoved tree of '{rmtree_target}\\' \n")
 
     def dump_source_copies(
         self, ndx_on_src_hexmap: list[int], source_hexmap: dict[str, list], logger: IO
@@ -235,11 +236,16 @@ class DirSync:
                 source_hexmap["flag"][ndx] = "Z"
 
     def remove_old_copies(
-        self, ndx_on_dst_hexmap: list[int], destination_hexmap: dict[str, list], logger: IO
+        self,
+        ndx_on_dst_hexmap: list[int],
+        destination_hexmap: dict[str, list],
+        logger: IO,
     ):
         for ndx in ndx_on_dst_hexmap:
             dst_dup = Path.joinpath(
-                self.destination, destination_hexmap["root"][ndx], destination_hexmap["fname"][ndx]
+                self.destination,
+                destination_hexmap["root"][ndx],
+                destination_hexmap["fname"][ndx],
             )
             if dst_dup.exists():
                 remove(dst_dup)
@@ -247,14 +253,14 @@ class DirSync:
                 DirSync.log_it(logger, f"\nDELETED extra duplicate {dst_dup}\n")
 
     def duplicate_pass_check(
-            self,
-            ndx_on_src_hexmap: list[int],
-            ndx_on_dst_hexmap: list[int],
-            src_common_list: list[Path],
-            dst_common_list: list[Path],
-            source_hexmap: dict[str, list],
-            destination_hexmap: dict[str, list],
-            logger: IO
+        self,
+        ndx_on_src_hexmap: list[int],
+        ndx_on_dst_hexmap: list[int],
+        src_common_list: list[Path],
+        dst_common_list: list[Path],
+        source_hexmap: dict[str, list],
+        destination_hexmap: dict[str, list],
+        logger: IO,
     ):
         matching_index: [None, int] = None
         for x in range(len(dst_common_list)):
@@ -266,7 +272,10 @@ class DirSync:
                 src_common_item = dst_common_list[x]
                 ndx_src_common_item = src_common_list.index(src_common_item)
 
-                DirSync.log_it(logger, f"\nPASS {Path.joinpath(self.destination, src_common_item)}\n")
+                DirSync.log_it(
+                    logger,
+                    f"\nPASS {Path.joinpath(self.destination, src_common_item)}\n",
+                )
 
                 # cleanup handled destination index & common path item
                 dst_hexmap_index = ndx_on_dst_hexmap[x]
@@ -281,14 +290,14 @@ class DirSync:
                 src_common_list.remove(src_common_item)
 
     def rename_duplicates(
-            self,
-            ndx_on_src_hexmap: list[int],
-            ndx_on_dst_hexmap: list[int],
-            src_common_list: list[Path],
-            dst_common_list: list[Path],
-            source_hexmap: dict[str, list],
-            destination_hexmap: dict[str, list],
-            logger: IO
+        self,
+        ndx_on_src_hexmap: list[int],
+        ndx_on_dst_hexmap: list[int],
+        src_common_list: list[Path],
+        dst_common_list: list[Path],
+        source_hexmap: dict[str, list],
+        destination_hexmap: dict[str, list],
+        logger: IO,
     ):
         # 1 - 1 renaming on same index level for both index & path lists
         try:
@@ -315,11 +324,11 @@ class DirSync:
             return
 
     def handle_duplicates(
-            self,
-            dst_hex: str,
-            source_hexmap: dict[str, list],
-            destination_hexmap: dict[str, list],
-            logger: IO
+        self,
+        dst_hex: str,
+        source_hexmap: dict[str, list],
+        destination_hexmap: dict[str, list],
+        logger: IO,
     ):
         """
         Rename or remove extra duplicates on destination path
@@ -339,17 +348,11 @@ class DirSync:
         ]
         # gather the common paths of each duplicate file on both endpoints
         src_common_list = [
-            Path.joinpath(
-                source_hexmap["root"][x],
-                source_hexmap["fname"][x]
-            )
+            Path.joinpath(source_hexmap["root"][x], source_hexmap["fname"][x])
             for x in ndx_on_src_hexmap
         ]
         dst_common_list = [
-            Path.joinpath(
-                destination_hexmap["root"][x],
-                destination_hexmap["fname"][x]
-            )
+            Path.joinpath(destination_hexmap["root"][x], destination_hexmap["fname"][x])
             for x in ndx_on_dst_hexmap
         ]
 
@@ -377,15 +380,18 @@ class DirSync:
             )
 
         # REMOVE remaining dst common list items
-        elif len(dst_common_list) != 0 and len(src_common_list) == 0:
+        if len(dst_common_list) != 0 and len(src_common_list) == 0:
             self.remove_old_copies(ndx_on_dst_hexmap, destination_hexmap, logger)
 
         # DUMP remaining source items
-        elif len(dst_common_list) == 0 and len(src_common_list) != 0:
+        if len(dst_common_list) == 0 and len(src_common_list) != 0:
             self.dump_source_copies(ndx_on_src_hexmap, source_hexmap, logger)
 
     def diff_hex(
-            self, source_hexmap: dict[str, list], destination_hexmap: dict[str, list], logger
+        self,
+        source_hexmap: dict[str, list],
+        destination_hexmap: dict[str, list],
+        logger,
     ):
         """
         Compare each destination file against source and mark handled for later use under selective dump to destination
@@ -411,8 +417,12 @@ class DirSync:
             if dst_hex in source_hexmap["hex"]:
                 # source and\or destination has at least 2 duplicates
                 if destination_hexmap["hex"].count(dst_hex) > 1:
-                    DirSync.log_it(logger, f"Handling duplicates for '{common_root}'\n")
-                    self.handle_duplicates(dst_hex, source_hexmap, destination_hexmap, logger)
+                    DirSync.log_it(
+                        logger, f"\nHandling duplicates for '{common_root}'\n"
+                    )
+                    self.handle_duplicates(
+                        dst_hex, source_hexmap, destination_hexmap, logger
+                    )
 
                 # unique hex match
                 else:
@@ -464,7 +474,7 @@ class DirSync:
 
                 try:
                     copy2(src, dst)
-                    DirSync.log_it(logger, f"{dst}\n")
+                    DirSync.log_it(logger, f"\n{dst}\n")
                 except OSError as XX:
                     if XX.errno == errno.ENOSPC:
                         DirSync.log_it(logger, f"{strerror(XX.errno)}\n")
@@ -488,7 +498,9 @@ class DirSync:
             # get the source directory hash map
             source_hexmap, source_tree = DirSync.generate_hexmap(self.source, logger)
             # get the destination directory hash map
-            destination_hexmap, destination_tree = DirSync.generate_hexmap(self.destination, logger)
+            destination_hexmap, destination_tree = DirSync.generate_hexmap(
+                self.destination, logger
+            )
 
             # both tree sets have only the common root extracted during hexmap generation
             DirSync.log_it(
