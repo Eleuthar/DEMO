@@ -13,7 +13,7 @@ import argparse
 from hashlib import md5
 from pathlib import Path
 from os import mkdir, rename, remove, walk, listdir, strerror
-from shutil import copytree, copy2, rmtree, unpack_archive
+from shutil import copytree, copy2, rmtree
 from datetime import datetime
 from time import sleep
 from typing import IO
@@ -256,10 +256,13 @@ class DirSync:
             destination_hexmap: dict[str, list],
             logger: IO
     ):
+        matching_index: [None, int] = None
         for x in range(len(dst_common_list)):
-            x = 0
-            if dst_common_list[x] in src_common_list:
+            # set iterator to last matching index to prevent skipping dst_common_list items
+            x = matching_index if matching_index is not None else x
 
+            if dst_common_list[x] in src_common_list:
+                matching_index = x
                 src_common_item = dst_common_list[x]
                 ndx_src_common_item = src_common_list.index(src_common_item)
 
@@ -274,7 +277,7 @@ class DirSync:
                 # cleanup handled source index & common path item
                 hexmap_index = ndx_on_src_hexmap[src_common_list.index(src_common_item)]
                 source_hexmap["flag"][hexmap_index] = "Z"
-                ndx_on_src_hexmap.remove(ndx_src_common_item)
+                del ndx_on_src_hexmap[ndx_src_common_item]
                 src_common_list.remove(src_common_item)
 
     def rename_duplicates(
