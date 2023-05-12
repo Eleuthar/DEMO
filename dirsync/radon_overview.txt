@@ -1,58 +1,60 @@
-Cyclomatic Complexity (CC)
-```````````````````````````
+CYCLOMATIC COMPLEXITY
+``````````````````````
 C:\Users\Florin Bujoreanu\PycharmProjects\dirSync\src\dir_sync.py
-    M 260:4 DirSync.handle_duplicates - C
-    M 428:4 DirSync.selective_dump_to_cloud - B
-    M 456:4 DirSync.one_way_sync - B
-    M 350:4 DirSync.diff_hex - B
+    M 317:4 DirSync.handle_duplicates - C
+    M 387:4 DirSync.diff_hex - B
+    M 455:4 DirSync.selective_dump_to_destination - B
     C 23:0 DirSync - A
-    M 83:4 DirSync.setup_log_path - A
-    M 204:4 DirSync.rm_obsolete_dir - A
-    M 183:4 DirSync.mirror_client_dir - A
-    M 416:4 DirSync.full_dump_to_cloud - A
-    M 141:4 DirSync.generate_hexmap - A
-    M 228:4 DirSync.dump_client_copies - A
-    M 244:4 DirSync.remove_old_copies - A
-    M 40:4 DirSync.validate_arg - A
-    M 120:4 DirSync.generate_file_hex - A
+    M 85:4 DirSync.setup_log_path - A
+    M 202:4 DirSync.rm_obsolete_dir - A
+    M 184:4 DirSync.mirror_source_dir - A
+    M 249:4 DirSync.duplicate_pass_check - A
+    M 283:4 DirSync.rename_duplicates - A
+    M 443:4 DirSync.full_dump_to_destination - A
+    M 475:4 DirSync.one_way_sync - A
+    M 143:4 DirSync.generate_hexmap - A
+    M 222:4 DirSync.dump_source_copies - A
+    M 237:4 DirSync.remove_old_copies - A
+    M 41:4 DirSync.validate_arg - A
+    M 122:4 DirSync.generate_file_hex - A
     M 26:4 DirSync.__init__ - A
-    M 105:4 DirSync.new_log_file - A
-    M 115:4 DirSync.log_it - A
+    M 107:4 DirSync.new_log_file - A
+    M 117:4 DirSync.log_it - A
 	
 
-raw metrics
-````````````	
-C:\Users\Florin Bujoreanu\PycharmProjects\dirSync\src\dir_sync.py
-    LOC: 540
-    LLOC: 261
-    SLOC: 361
-    Comments: 47
-    Single comments: 47
-    Multi: 69
-    Blank: 63
-    - Comment Stats
-        (C % L): 9%
-        (C % S): 13%
-        (C + M % L): 21%
-		
-
-Maintainability Index
-`````````````````````		
+MAINTAINABILITY INDEX
+``````````````````````
 C:\Users\Florin Bujoreanu\PycharmProjects\dirSync\src\dir_sync.py - A
 
 
-Halstead metrics
-`````````````````
+HAL
+````
 C:\Users\Florin Bujoreanu\PycharmProjects\dirSync\src\dir_sync.py:
-    h1: 13
-    h2: 80
-    N1: 51
-    N2: 94
-    vocabulary: 93
-    length: 145
-    calculated_length: 553.8599639268232
-    volume: 948.1780276106646
-    difficulty: 7.6375
-    effort: 7241.709685876451
-    time: 402.3172047709139
-    bugs: 0.31605934253688817
+    h1: 12
+    h2: 68
+    N1: 42
+    N2: 79
+    vocabulary: 80
+    length: 121
+    calculated_length: 456.967023213677
+    volume: 764.9532994813708
+    difficulty: 6.970588235294118
+    effort: 5332.174469914261
+    time: 296.2319149952367
+    bugs: 0.25498443316045694
+
+
+RAW
+````
+C:\Users\Florin Bujoreanu\PycharmProjects\dirSync\src\dir_sync.py
+    LOC: 552
+    LLOC: 252
+    SLOC: 374
+    Comments: 46
+    Single comments: 46
+    Multi: 69
+    Blank: 63
+    - Comment Stats
+        (C % L): 8%
+        (C % S): 12%
+        (C + M % L): 21%
