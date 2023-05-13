@@ -538,6 +538,7 @@ class DirSync:
 
         return (sync_finish - sync_start).seconds
 
+
 if __name__ == "__main__":
     # validate input parameters
     argz = DirSync.validate_arg()
@@ -565,4 +566,3 @@ if __name__ == "__main__":
             sleep(dir_sync.interval)
         else:
             sleep(sync_delta)
-
