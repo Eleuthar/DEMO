@@ -533,19 +533,10 @@ class DirSync:
             f"\n\n\nFinished sync at {datetime.now().strftime('%y-%m-%d %H:%M')}\n\n\n\n{120 * '~'}",
         )
 
-        # determine last sync duration to cut from the interval sleep time until next sync
-        sync_duration = (sync_finish - sync_start).seconds
-        sync_delta = self.interval - sync_duration
-
         # close log file to allow reading the last sync events
         logger.close()
 
-        # Sleep for the remaining time interval
-        if sync_delta <= 0:
-            sleep(dir_sync.interval)
-        else:
-            sleep(sync_delta)
-
+        return (sync_finish - sync_start).seconds
 
 if __name__ == "__main__":
     # validate input parameters
@@ -564,4 +555,14 @@ if __name__ == "__main__":
         argz.log_path,
     )
     while True:
-        dir_sync.one_way_sync()
+        sync_duration = dir_sync.one_way_sync()
+
+        # determine last sync duration to cut from the interval sleep time until next sync
+        sync_delta = dir_sync.interval - sync_duration
+
+        # Sleep for the remaining time interval
+        if sync_delta <= 0:
+            sleep(dir_sync.interval)
+        else:
+            sleep(sync_delta)
+
