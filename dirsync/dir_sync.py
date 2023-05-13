@@ -1,4 +1,7 @@
 r"""
+    Synchronize a destination directory with a source directory every 'x' seconds\minutes\hours\days
+     while the program runs in the background.
+
     Usage: python dirSync.py -s|--source_path <source_path> -d|--destination_path <destination_path>
         -i|--interval <integer> -t <S||M||H||D> -l|--log <log_path>
 
@@ -10,6 +13,7 @@ r"""
 """
 
 import argparse
+import sys
 from hashlib import md5
 from pathlib import Path
 from os import mkdir, rename, remove, walk, listdir, strerror
@@ -77,7 +81,7 @@ class DirSync:
 
         if None in input_argz.__dict__.values():
             print(__doc__)
-            exit()
+            sys.exit()
 
         return input_argz
 
@@ -94,7 +98,7 @@ class DirSync:
                 f'Directory "{log_path.name}" does not exist, nor the parent "{log_path.parent.name}"\n'
                 "This program will now exit, please use an existing directory to store the logs.\n"
             )
-            exit()
+            sys.exit()
 
         # only the target log folder may not exist
         if log_path.parent.exists() and not log_path.exists():
@@ -327,7 +331,7 @@ class DirSync:
         dst_hex: str,
         source_hexmap: dict[str, list],
         destination_hexmap: dict[str, list],
-        logger: IO,
+        logger: IO
     ):
         """
         Rename or remove extra duplicates on destination path
@@ -456,7 +460,7 @@ class DirSync:
         except OSError as XX:
             if XX.errno == errno.ENOSPC:
                 DirSync.log_it(logger, f"{strerror(XX.errno)}\n")
-                exit()
+                sys.exit()
 
         except Exception as X:
             DirSync.log_it(logger, f"Error: {X}\n")
@@ -477,7 +481,7 @@ class DirSync:
                 except OSError as XX:
                     if XX.errno == errno.ENOSPC:
                         DirSync.log_it(logger, f"{strerror(XX.errno)}\n")
-                        exit()
+                        sys.exit()
                 except Exception as X:
                     DirSync.log_it(logger, f"{X}\n")
 
