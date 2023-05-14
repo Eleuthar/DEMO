@@ -13,7 +13,7 @@ r"""
 """
 
 import argparse
-import sys
+from sys import exit
 from hashlib import md5
 from pathlib import Path
 from os import mkdir, rename, remove, walk, listdir, strerror
@@ -81,7 +81,7 @@ class DirSync:
 
         if None in input_argz.__dict__.values():
             print(__doc__)
-            sys.exit()
+            exit()
 
         return input_argz
 
@@ -98,7 +98,7 @@ class DirSync:
                 f'Directory "{log_path.name}" does not exist, nor the parent "{log_path.parent.name}"\n'
                 "This program will now exit, please use an existing directory to store the logs.\n"
             )
-            sys.exit()
+            exit()
 
         # only the target log folder may not exist
         if log_path.parent.exists() and not log_path.exists():
@@ -107,14 +107,13 @@ class DirSync:
 
         print(f"Saving logs in {log_path.resolve()}\n")
 
-    @staticmethod
-    def new_log_file(log_path: Path, now: datetime) -> IO:
+    def new_log_file(self, now: datetime) -> IO:
         """
         Return a new file formatted like: dirSync_2023-04-18.txt
         """
         ymd_now = now.strftime("%Y-%m-%d")
         log_name = f"dirSync_{ymd_now}.txt"
-        full_log_path = Path.joinpath(log_path, log_name)
+        full_log_path = Path.joinpath(self.log_path, log_name)
         return open(full_log_path, "a", encoding="UTF-8")
 
     @staticmethod
@@ -149,7 +148,7 @@ class DirSync:
         Map every single filename under the target directory to its own hex digest & path on the same index level.
         Gather unique root paths.
         :param target: either source path or destination path
-        :param logger: current date auto-rotating log file
+        :param logger: log file
         :return:
             dict with keys:'root', 'fname', 'hex', 'flag'
                 root[j] = full path of the parent up to the common root
@@ -166,7 +165,6 @@ class DirSync:
         """
         target_tree = set()
         hexmap: dict[str, list] = {"root": [], "fname": [], "hex": [], "flag": []}
-        DirSync.log_it(logger, f"\n\n\n\nHEXMAP for base root '{target}'\n{120 * '-'}")
         for directory in walk(target):
             # directory[0] = dirname: str, directory[1] = [folder basenames], directory[2]=[filenames]
             common_root = Path(directory[0][len(target.__str__()) + 1:])
@@ -460,7 +458,7 @@ class DirSync:
         except OSError as XX:
             if XX.errno == errno.ENOSPC:
                 DirSync.log_it(logger, f"{strerror(XX.errno)}\n")
-                sys.exit()
+                exit()
 
         except Exception as X:
             DirSync.log_it(logger, f"Error: {X}\n")
@@ -481,30 +479,16 @@ class DirSync:
                 except OSError as XX:
                     if XX.errno == errno.ENOSPC:
                         DirSync.log_it(logger, f"{strerror(XX.errno)}\n")
-                        sys.exit()
+                        exit()
                 except Exception as X:
                     DirSync.log_it(logger, f"{X}\n")
 
-    def one_way_sync(self):
-        # make log file
-        sync_start = datetime.now()
-        logger = DirSync.new_log_file(self.log_path, sync_start)
-        DirSync.log_it(
-            logger, f"Starting sync at {sync_start.strftime('%y-%m-%d %H:%M')}\n"
-        )
-
+    def one_way_sync(self, source_hexmap, destination_hexmap, source_tree, destination_tree, logger):
         # initial full dump to destination storage
         if len(listdir(self.destination)) == 0 and len(listdir(self.source)) != 0:
             DirSync.log_it(logger, f"\n\n\nPERFORMING FULL SYNC\n\n")
             self.full_dump_to_destination(logger)
         else:
-            # get the source directory hash map
-            source_hexmap, source_tree = DirSync.generate_hexmap(self.source, logger)
-            # get the destination directory hash map
-            destination_hexmap, destination_tree = DirSync.generate_hexmap(
-                self.destination, logger
-            )
-
             # both tree sets have only the common root extracted during hexmap generation
             DirSync.log_it(
                 logger, "\n\n\nUPDATING DESTINATION TREE\n`````````````````````````\n"
@@ -526,17 +510,7 @@ class DirSync:
             DirSync.log_it(logger, "\n\n\nADDING NEW CONTENT\n```````````````````\n")
             self.selective_dump_to_destination(source_hexmap, logger)
 
-        sync_finish = datetime.now()
-
-        DirSync.log_it(
-            logger,
-            f"\n\n\nFinished sync at {datetime.now().strftime('%y-%m-%d %H:%M')}\n\n\n\n{120 * '~'}",
-        )
-
-        # close log file to allow reading the last sync events
-        logger.close()
-
-        return (sync_finish - sync_start).seconds
+        return datetime.now()
 
 
 if __name__ == "__main__":
@@ -555,12 +529,37 @@ if __name__ == "__main__":
         argz.time_unit,
         argz.log_path,
     )
+
     while True:
-        sync_duration = dir_sync.one_way_sync()
+        sync_start_time = datetime.now()
+        # log rotate based on current date
+        logg = dir_sync.new_log_file(sync_start_time)
+        # get the source directory hash map
+        src_hexmap, src_tree = DirSync.generate_hexmap(dir_sync.source, logg)
+        # get the destination directory hash map
+        dest_hexmap, dest_tree = DirSync.generate_hexmap(dir_sync.destination, logg)
 
+        DirSync.log_it(
+            logg, f"Starting sync at {sync_start_time.strftime('%y-%m-%d %H:%M')}\n"
+        )
+
+        sync_finish_time = dir_sync.one_way_sync(
+            src_hexmap,
+            dest_hexmap,
+            src_tree,
+            dest_tree,
+            logg
+        )
+
+        DirSync.log_it(
+            logg,
+            f"\n\n\nFinished sync at {datetime.now().strftime('%y-%m-%d %H:%M')}\n\n\n\n{120 * '~'}",
+        )
+        # close log file to allow reading of the last log items
+        logg.close()
         # determine last sync duration to cut from the interval sleep time until next sync
+        sync_duration = (sync_start_time - sync_finish_time).seconds
         sync_delta = dir_sync.interval - sync_duration
-
         # Sleep for the remaining time interval
         if sync_delta <= 0:
             sleep(dir_sync.interval)
