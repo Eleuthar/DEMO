@@ -165,6 +165,8 @@ class DirSync:
         """
         target_tree = set()
         hexmap: dict[str, list] = {"root": [], "fname": [], "hex": [], "flag": []}
+        DirSync.log_it(logger, f"\n\n\n\nHEXMAP for base root '{target}'\n{120 * '-'}")
+        
         for directory in walk(target):
             # directory[0] = dirname: str, directory[1] = [folder basenames], directory[2]=[filenames]
             common_root = Path(directory[0][len(target.__str__()) + 1:])
