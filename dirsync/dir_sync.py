@@ -542,7 +542,7 @@ if __name__ == "__main__":
         dest_hexmap, dest_tree = DirSync.generate_hexmap(dir_sync.destination, logg)
 
         DirSync.log_it(
-            logg, f"Starting sync at {sync_start_time.strftime('%y-%m-%d %H:%M')}\n"
+            logg, f"\n\n\nStarting sync at {sync_start_time.strftime('%y-%m-%d %H:%M')}\n"
         )
 
         sync_finish_time = dir_sync.one_way_sync(
