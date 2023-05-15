@@ -25,65 +25,19 @@ import errno
 
 
 class DirSync:
-    timeframe = {"S": 1, "M": 60, "H": 3600, "D": 86400}
 
     def __init__(
         self,
         source: Path,
         destination: Path,
         interval: int,
-        time_unit: str,
         log_path: Path,
     ):
         # resolve relative paths
         self.source = source.resolve()
         self.destination = destination.resolve()
-        self.interval = interval * DirSync.timeframe[time_unit.upper()]
+        self.interval = interval
         self.log_path = log_path.resolve()
-
-    @staticmethod
-    def validate_arg():
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "-s",
-            "--source_path",
-            type=Path,
-            help="The source directory that needs to be replicated",
-        )
-        parser.add_argument(
-            "-d",
-            "--destination_path",
-            type=Path,
-            help="The destination directory that will replicate the " "source",
-        )
-        parser.add_argument(
-            "-i",
-            "--interval",
-            type=int,
-            help="Number of seconds | minutes | hours | days " "of the next argument",
-        )
-        parser.add_argument(
-            "-t",
-            "--time_unit",
-            type=str,
-            help=(
-                "Time unit for interval of the replication job: S for "
-                "seconds, M for minutes, H for hours, D for days"
-            ),
-        )
-        parser.add_argument(
-            "-l",
-            "--log_path",
-            type=Path,
-            help="The directory where logs will be stored",
-        )
-        input_argz = parser.parse_args()
-
-        if None in input_argz.__dict__.values():
-            print(__doc__)
-            exit()
-
-        return input_argz
 
     @staticmethod
     def setup_log_path(log_path: Path):
@@ -166,7 +120,6 @@ class DirSync:
         target_tree = set()
         hexmap: dict[str, list] = {"root": [], "fname": [], "hex": [], "flag": []}
         DirSync.log_it(logger, f"\n\n\n\nHEXMAP for base root '{target}'\n{120 * '-'}")
-        
         for directory in walk(target):
             # directory[0] = dirname: str, directory[1] = [folder basenames], directory[2]=[filenames]
             common_root = Path(directory[0][len(target.__str__()) + 1:])
@@ -515,21 +468,66 @@ class DirSync:
         return datetime.now()
 
 
+def validate_arg():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-s",
+        "--source_path",
+        type=Path,
+        help="The source directory that needs to be replicated",
+    )
+    parser.add_argument(
+        "-d",
+        "--destination_path",
+        type=Path,
+        help="The destination directory that will replicate the " "source",
+    )
+    parser.add_argument(
+        "-i",
+        "--interval",
+        type=int,
+        help="Number of seconds | minutes | hours | days " "of the next argument",
+    )
+    parser.add_argument(
+        "-t",
+        "--time_unit",
+        type=str,
+        help=(
+            "Time unit for interval of the replication job: S for "
+            "seconds, M for minutes, H for hours, D for days"
+        ),
+    )
+    parser.add_argument(
+        "-l",
+        "--log_path",
+        type=Path,
+        help="The directory where logs will be stored",
+    )
+
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
     # validate input parameters
-    argz = DirSync.validate_arg()
+    argz = validate_arg()
+
+    if None in argz.__dict__.values():
+        print(__doc__)
+        exit()
 
     # create the log directory if the input path does not exist
     DirSync.setup_log_path(argz.log_path)
 
     # EXECUTE PROGRAM
     # On lack of disk space the program will exit
+    timeframe = {"S": 1, "M": 60, "H": 3600, "D": 86400}
+    timeframe = argz.interval * timeframe[argz.time_unit.upper()]
+
     dir_sync = DirSync(
         argz.source_path,
         argz.destination_path,
-        argz.interval,
-        argz.time_unit,
-        argz.log_path,
+        timeframe,
+        argz.log_path
     )
 
     while True:
