@@ -1,3 +1,7 @@
+"""
+Python challenge part of Edube.org python certification courses
+"""
+
 import xml.etree.ElementTree as xtree
 
 
