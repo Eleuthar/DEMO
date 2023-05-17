@@ -1,152 +1,131 @@
 r"""
-    Synchronize a destination directory with a source directory every 'x' seconds\minutes\hours\days
-     while the program runs in the background.
-
     Usage: python dirSync.py -s|--source_path <source_path> -d|--destination_path <destination_path>
         -i|--interval <integer> -t <S||M||H||D> -l|--log <log_path>
 
     S = SECONDS, M = MINUTES, H = HOURS, D = DAYS
 
     Example for synchronizing every 5 minutes with absolute path:
-    $ python dirSync.py -s "C:\Users\MrRobot\Documents\Homework" -d "C:\Users\MrRobot\Downloads\Homework" -i 5 -t M
+    $ python dirSync.py -s "C:\Users\MrRobot\Documents\Homework"
+    -d "C:\Users\MrRobot\Downloads\Homework" -i 5 -t M
     -l "C:\Program Files\DirSync\logs"
 """
 
 import argparse
-from sys import exit
+import logging
 from hashlib import md5
+from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from os import mkdir, rename, remove, walk, listdir, strerror
 from shutil import copytree, copy2, rmtree
 from datetime import datetime
 from time import sleep
-from typing import IO
 import errno
+from sys import exit
 
 
 class DirSync:
+    """
+    DirSync(source, destination, logger)
 
-    def __init__(
-        self,
-        source: Path,
-        destination: Path,
-        interval: int,
-        log_path: Path,
-    ):
-        # resolve relative paths
-        self.source = source.resolve()
-        self.destination = destination.resolve()
-        self.interval = interval
-        self.log_path = log_path.resolve()
+    Synchronize a destination directory with a source directory every 'x' seconds|minutes|hours|days
+     while the program runs in the background.
+    """
 
-    @staticmethod
-    def setup_log_path(log_path: Path):
-        """
-        Validate existing log directory path or create a new one if the parent exists
-        """
-        print(f'Validating log directory: "{log_path}"\n')
-
-        # target log folder may not exist along with the parent
-        if not log_path.exists() and not log_path.parent.exists():
-            print(
-                f'Directory "{log_path.name}" does not exist, nor the parent "{log_path.parent.name}"\n'
-                "This program will now exit, please use an existing directory to store the logs.\n"
-            )
-            exit()
-
-        # only the target log folder may not exist
-        if log_path.parent.exists() and not log_path.exists():
-            print(f"The directory {log_path.name} does not exist, creating it now.\n")
-            mkdir(log_path)
-
-        print(f"Saving logs in {log_path.resolve()}\n")
-
-    def new_log_file(self, now: datetime) -> IO:
-        """
-        Return a new file formatted like: dirSync_2023-04-18.txt
-        """
-        ymd_now = now.strftime("%Y-%m-%d")
-        log_name = f"dirSync_{ymd_now}.txt"
-        full_log_path = Path.joinpath(self.log_path, log_name)
-        return open(full_log_path, "a", encoding="UTF-8")
-
-    @staticmethod
-    def log_it(logger: IO, log_item: str):
-        print(log_item)
-        logger.write(log_item)
+    def __init__(self, source_root, destination_root, log_obj: logging.Logger):
+        self.logger = log_obj
+        self.source: Path = source_root
+        self.destination: Path = destination_root
+        # will be assigned values during one_way_sync
+        self.destination_hexmap = None
+        self.source_hexmap = None
+        self.source_tree = None
+        self.destination_tree = None
 
     @staticmethod
     def generate_file_hex(
         target: Path,
-        common_root: Path,
-        filename: str,
+        file_path: Path,
         blocksize: int = 8192,
     ) -> str:
         """
         Generate a file's hash digest
         :param target: either source or destination path from the -s or -d argument
-        :param common_root: the same path that should be ultimately reflected on both source & destination directories
-        :param filename: File's basename
+        :param file_path: the same path that should be ultimately reflected on both
+            source & destination directories
         :param blocksize: Any value as the power of 2. Chunks of 8192 bytes to handle large files
         :return: Cryptographic hash digest
         """
-        hh = md5()
-        with open(Path.joinpath(target, common_root, filename), "rb") as f:
-            while buff := f.read(blocksize):
-                hh.update(buff)
-        return hh.hexdigest()
+        md5_hash = md5()
+        with open(Path.joinpath(target, file_path), "rb") as file:
+            while buff := file.read(blocksize):
+                md5_hash.update(buff)
+        return md5_hash.hexdigest()
 
     @staticmethod
-    def generate_hexmap(target: Path, logger: IO) -> tuple[dict[str, list], set[Path]]:
+    def generate_xmap(
+        target: Path, logger: logging.Logger
+    ) -> tuple[dict[str, list], set[Path]]:
         """
-        Map every single filename under the target directory to its own hex digest & path on the same index level.
-        Gather unique root paths.
-        :param target: either source path or destination path
-        :param logger: log file
-        :return:
-            dict with keys:'root', 'fname', 'hex', 'flag'
-                root[j] = full path of the parent up to the common root
-                fname[j] = file basename
-                hex[j] = generated hash digest
-                flag[j] = None
-                   but later updated to 'Z' during comparison of source & destination within diff_hex method.
-                   The flag is necessary in the multiple duplication scenario, if many big files with the same digest
-                   are duplicated(same or new name) intentionally on source directory.
-                   Using this flag will avoid unnecessary CPU workload for deleting then later copying the same file
-                   on another destination location
+        Acts as a setter for:
+            source_hexmap, source_tree,
+            destination_hexmap, destination_tree
 
-            Set of empty & non-empty directories that will be used for the removal of obsolete directories
+        Map every file under the target directory to its own
+            hex digest & path on the same index level.
+        Gather unique root paths.
+
+        :param target: either source path or destination path
+        :param logger: auto-rotating instance logger
+        :return:
+        dict with keys:'root', 'fname', 'hex', 'flag'
+            root[j] = full path of the parent up to the common root
+            common_path[j] = path from common root including the filename
+            hex[j] = generated hash digest
+            flag[j] = False
+                The flag is set to True during diff_hex.
+                Necessary in the multiple duplication scenario, to avoid unnecessary CPU load
+                  if big files with the same digest are duplicated and|or renamed
+            Set of empty & non-empty directories used for obsolete directory removal
         """
         target_tree = set()
-        hexmap: dict[str, list] = {"root": [], "fname": [], "hex": [], "flag": []}
-        DirSync.log_it(logger, f"\n\n\n\nHEXMAP for base root '{target}'\n{120 * '-'}")
+        hexmap = {
+            "root": [],
+            "common_path": [],
+            "hex": [],
+            "flag": [],
+        }
+        logger.info(f'\nHEXMAP for base root "{target}"\n{120 * "-"}')
+
         for directory in walk(target):
-            # directory[0] = dirname: str, directory[1] = [folder basenames], directory[2]=[filenames]
-            common_root = Path(directory[0][len(target.__str__()) + 1:])
+            # directory[0] = dirname:
+            # str, directory[1] = [folder basenames]
+            # directory[2]=[filenames]
+            common_root = Path(directory[0][len(target.__str__()) + 1 :])
+
             # make a set of all empty and non-empty folders
             target_tree.add(common_root)
+
             # map only non-empty folders to their children
             for fname in directory[2]:
-                hexmap["root"].append(common_root)
-                hexmap["fname"].append(Path(fname))
-                hx = DirSync.generate_file_hex(target, common_root, fname)
-                hexmap["hex"].append(hx)
-                hexmap["flag"].append(None)
+                target_common_path = Path.joinpath(common_root, fname)
+                hex_digest = DirSync.generate_file_hex(target, target_common_path)
 
-                DirSync.log_it(logger, f"\n{Path.joinpath(common_root, fname)}")
-                DirSync.log_it(logger, f"\n{hx}")
-                DirSync.log_it(logger, f"\n{120 * '-'}")
+                hexmap["common_path"].append(target_common_path)
+                hexmap["root"].append(common_root)
+                hexmap["hex"].append(hex_digest)
+                hexmap["flag"].append(False)
+
+                logger.info(f"{target_common_path} " f"\n{hex_digest}" f"\n{120 * '-'}")
+
         return hexmap, target_tree
 
-    def mirror_source_dir(self, source_tree: set[Path], logger: IO):
+    def mirror_source_dir(self):
         """
-        Mirror source directories on destination path from the deepest directory level
-        This is a prerequisite for updating destination path files, to prevent OSError by non-existing directory.
-        :param source_tree: The common_root path list to be traversed
-        :param logger: current date auto-rotating log file
-        :return: action counter for later logging
+        Mirror source directories on destination path from the deepest level
+        This is a prerequisite for updating destination path files,
+          to prevent OSError by non-existing directory.
         """
-        for dirpath in source_tree:
+        for dirpath in self.source_tree:
             next_level = Path("")
             for dirname in dirpath.parts:
                 # next_level is built progressively to allow mkdir without error
@@ -154,17 +133,14 @@ class DirSync:
                 current_path = Path.joinpath(self.destination, next_level)
                 if not current_path.exists():
                     mkdir(current_path)
-                    DirSync.log_it(logger, f"\nCreated '{current_path}\\' \n")
+                    self.logger.info(f"Created '{current_path}\\' \n")
 
-    def rm_obsolete_dir(self, destination_tree: set[Path], logger: IO):
+    def rm_obsolete_dir(self):
         """
         Remove destination directories that are no longer on source.
         The eligible directories are empty at this stage
-        :param destination_tree: The common_root path list to be traversed
-        :param logger: current date auto-rotating log file
-        :return: action counter for later logging
         """
-        for destination_dirpath in destination_tree:
+        for destination_dirpath in self.destination_tree:
             rmtree_target = Path.joinpath(self.destination, destination_dirpath)
             destination_path_on_source = Path.joinpath(self.source, destination_dirpath)
             # handle only joined paths that are not the base common root
@@ -174,39 +150,42 @@ class DirSync:
                 and rmtree_target.exists()
             ):
                 rmtree(rmtree_target, ignore_errors=True)
-                DirSync.log_it(logger, f"\nRemoved tree of '{rmtree_target}\\' \n")
+                self.logger.info(f"Removed '{rmtree_target}\\' \n")
 
-    def dump_source_copies(
-        self, ndx_on_src_hexmap: list[int], source_hexmap: dict[str, list], logger: IO
-    ):
+    def dump_source_copies(self, ndx_on_src_hexmap: list[int]):
+        """
+        Method called upon source directory files during duplicate handling scenario
+        Source has more duplicate files than the destination
+        Copy the source directory duplicates that are not already existing in the destination folder
+
+        :param ndx_on_src_hexmap: the index of each duplicate in the source hexmap
+        """
         for ndx in ndx_on_src_hexmap:
-            new_path = Path.joinpath(
-                source_hexmap["root"][ndx], source_hexmap["fname"][ndx]
-            )
+            new_path = self.source_hexmap["common_path"][ndx]
             from_path = Path.joinpath(self.source, new_path)
             to_path = Path.joinpath(self.destination, new_path)
 
             if not to_path.exists():
                 copy2(from_path, to_path)
-                DirSync.log_it(logger, f"Copied {to_path}\n")
-                source_hexmap["flag"][ndx] = "Z"
+                self.logger.info(f"Copied {to_path}\n")
+                self.source_hexmap["flag"][ndx] = True
 
-    def remove_old_copies(
-        self,
-        ndx_on_dst_hexmap: list[int],
-        destination_hexmap: dict[str, list],
-        logger: IO,
-    ):
+    def remove_old_copies(self, ndx_on_dst_hexmap: list[int]):
+        """
+        Remove extra duplicates from destination directory
+        This can happen when the sync is broken
+
+        :param ndx_on_dst_hexmap: index values from destination_hexmap
+        """
         for ndx in ndx_on_dst_hexmap:
             dst_dup = Path.joinpath(
-                self.destination,
-                destination_hexmap["root"][ndx],
-                destination_hexmap["fname"][ndx],
+                self.destination, self.destination_hexmap["common_path"][ndx]
             )
+
             if dst_dup.exists():
                 remove(dst_dup)
-                destination_hexmap["flag"][ndx] = "Z"
-                DirSync.log_it(logger, f"\nDELETED extra duplicate {dst_dup}\n")
+                self.destination_hexmap["flag"][ndx] = True
+                self.logger.info(f"DELETED extra duplicate {dst_dup}\n")
 
     def duplicate_pass_check(
         self,
@@ -214,34 +193,37 @@ class DirSync:
         ndx_on_dst_hexmap: list[int],
         src_common_list: list[Path],
         dst_common_list: list[Path],
-        source_hexmap: dict[str, list],
-        destination_hexmap: dict[str, list],
-        logger: IO,
     ):
+        """
+        Pass the same amount of destination duplicates as on the source directory
+        :param ndx_on_src_hexmap: temp list of index values from source_hexmap
+        :param ndx_on_dst_hexmap: temp list of index values from destination_hexmap
+        :param src_common_list: temp list of common file paths from source_hexmap
+        :param dst_common_list: temp list of common file paths from destination_hexmap
+        """
         matching_index: [None, int] = None
-        for x in range(len(dst_common_list)):
+        for path_index in range(len(dst_common_list)):
             # set iterator to last matching index to prevent skipping dst_common_list items
-            x = matching_index if matching_index is not None else x
+            path_index = matching_index if matching_index is not None else path_index
 
-            if dst_common_list[x] in src_common_list:
-                matching_index = x
-                src_common_item = dst_common_list[x]
+            if dst_common_list[path_index] in src_common_list:
+                matching_index = path_index
+                src_common_item = dst_common_list[path_index]
                 ndx_src_common_item = src_common_list.index(src_common_item)
 
-                DirSync.log_it(
-                    logger,
-                    f"\nPASS {Path.joinpath(self.destination, src_common_item)}\n",
+                self.logger.info(
+                    f"PASS {Path.joinpath(self.destination, src_common_item)}\n"
                 )
 
-                # cleanup handled destination index & common path item
-                dst_hexmap_index = ndx_on_dst_hexmap[x]
-                destination_hexmap["flag"][dst_hexmap_index] = "Z"
-                del ndx_on_dst_hexmap[x]
-                del dst_common_list[x]
+                # mark & cleanup handled destination items
+                dst_index = ndx_on_dst_hexmap[path_index]
+                self.destination_hexmap["flag"][dst_index] = True
+                del ndx_on_dst_hexmap[path_index]
+                del dst_common_list[path_index]
 
-                # cleanup handled source index & common path item
-                hexmap_index = ndx_on_src_hexmap[src_common_list.index(src_common_item)]
-                source_hexmap["flag"][hexmap_index] = "Z"
+                # mark & cleanup handled source items
+                src_index = ndx_on_src_hexmap[src_common_list.index(src_common_item)]
+                self.source_hexmap["flag"][src_index] = True
                 del ndx_on_src_hexmap[ndx_src_common_item]
                 src_common_list.remove(src_common_item)
 
@@ -251,65 +233,60 @@ class DirSync:
         ndx_on_dst_hexmap: list[int],
         src_common_list: list[Path],
         dst_common_list: list[Path],
-        source_hexmap: dict[str, list],
-        destination_hexmap: dict[str, list],
-        logger: IO,
     ):
-        # 1 - 1 renaming on same index level for both index & path lists
+        """
+        1 - 1 renaming on same index level for both index & path lists
+        :param ndx_on_src_hexmap: temp list containing index values from source_hexmap
+        :param ndx_on_dst_hexmap: temp list containing index values from destination_hexmap
+        :param src_common_list: temp list containing the common root path from source_hexmap
+        :param dst_common_list: temp list containing the common root path from destination_hexmap
+        """
         try:
-            for q in range(len(dst_common_list)):
-                q = 0
-                old_path = Path.joinpath(self.destination, dst_common_list[q])
-                new_path = Path.joinpath(self.destination, src_common_list[q])
+            for dst_index in range(len(dst_common_list)):
+                dst_index = 0
+                old_path = Path.joinpath(self.destination, dst_common_list[dst_index])
+                new_path = Path.joinpath(self.destination, src_common_list[dst_index])
 
                 if old_path.exists():
                     rename(old_path, new_path)
-                    DirSync.log_it(logger, f"\nRENAMED {old_path} to {new_path}\n")
-                    # flag hexmap entry & cleanup handled from index list & path list
-                    hexmap_index = ndx_on_dst_hexmap[q]
-                    destination_hexmap["flag"][hexmap_index] = "Z"
-                    del ndx_on_dst_hexmap[q]
-                    del dst_common_list[q]
-                    hexmap_index = ndx_on_src_hexmap[q]
-                    source_hexmap["flag"][hexmap_index] = "Z"
-                    del ndx_on_src_hexmap[q]
-                    del src_common_list[q]
+                    self.logger.info(f"\nRENAMED {old_path} to {new_path}\n")
+
+                    # mark & cleanup handled destination items
+                    hexmap_index = ndx_on_dst_hexmap[dst_index]
+                    self.destination_hexmap["flag"][hexmap_index] = True
+                    del ndx_on_dst_hexmap[dst_index]
+                    del dst_common_list[dst_index]
+
+                    # mark & cleanup handled source items
+                    hexmap_index = ndx_on_src_hexmap[dst_index]
+                    self.source_hexmap["flag"][hexmap_index] = True
+                    del ndx_on_src_hexmap[dst_index]
+                    del src_common_list[dst_index]
 
         # src_common_list had fewer items, remaining dst_common_list items will be removed next
         except IndexError:
             return
 
-    def handle_duplicates(
-        self,
-        dst_hex: str,
-        source_hexmap: dict[str, list],
-        destination_hexmap: dict[str, list],
-        logger: IO
-    ):
+    def handle_duplicates(self, dst_hex: str):
         """
         Rename or remove extra duplicates on destination path
         Copy new duplicates from source
         :param dst_hex: Hash digest that is found multiple times on either source or destination
-        :param source_hexmap: Dictionary that holds the current duplicates on destination path
-        :param destination_hexmap: Dictionary that holds the current duplicates on source path
-        :param logger: log file
         :return: action counter for later logging
         """
         # gather the index of each duplicate file on both endpoints
         ndx_on_src_hexmap = [
-            ndx for ndx, v in enumerate(source_hexmap["hex"]) if v == dst_hex
+            ndx for ndx, v in enumerate(self.source_hexmap["hex"]) if v == dst_hex
         ]
         ndx_on_dst_hexmap = [
-            ndx for ndx, v in enumerate(destination_hexmap["hex"]) if v == dst_hex
+            ndx for ndx, v in enumerate(self.destination_hexmap["hex"]) if v == dst_hex
         ]
         # gather the common paths of each duplicate file on both endpoints
         src_common_list = [
-            Path.joinpath(source_hexmap["root"][x], source_hexmap["fname"][x])
-            for x in ndx_on_src_hexmap
+            self.source_hexmap["common_path"][x] for x in ndx_on_src_hexmap
         ]
         dst_common_list = [
-            Path.joinpath(destination_hexmap["root"][x], destination_hexmap["fname"][x])
-            for x in ndx_on_dst_hexmap
+            self.destination_hexmap["common_path"][x] for x in ndx_on_dst_hexmap
         ]
 
         # PASS matching common root
@@ -318,9 +295,6 @@ class DirSync:
             ndx_on_dst_hexmap,
             src_common_list,
             dst_common_list,
-            source_hexmap,
-            destination_hexmap,
-            logger
         )
 
         # RENAME remaining destination files after PASS check
@@ -330,146 +304,165 @@ class DirSync:
                 ndx_on_dst_hexmap,
                 src_common_list,
                 dst_common_list,
-                source_hexmap,
-                destination_hexmap,
-                logger
             )
 
         # REMOVE remaining dst common list items
         if len(dst_common_list) != 0 and len(src_common_list) == 0:
-            self.remove_old_copies(ndx_on_dst_hexmap, destination_hexmap, logger)
+            self.remove_old_copies(ndx_on_dst_hexmap)
 
         # DUMP remaining source items
         if len(dst_common_list) == 0 and len(src_common_list) != 0:
-            self.dump_source_copies(ndx_on_src_hexmap, source_hexmap, logger)
+            self.dump_source_copies(ndx_on_src_hexmap)
 
-    def diff_hex(
-        self,
-        source_hexmap: dict[str, list],
-        destination_hexmap: dict[str, list],
-        logger,
-    ):
+    def diff_hex(self):
         """
-        Compare each destination file against source and mark handled for later use under selective dump to destination
-        This is where the actual synchronization takes place in the eventuality of a temporarily sync break.
-        The most complex scenario is either directories having many identical duplicate files
-        Some duplicates can have a different name but the same large content, so the objective is to avoid extra traffic
+        Compare each destination file against source
+        Mark handled for later use under selective dump to destination
         """
         # destination-side cleanup
-        for j in range(len(destination_hexmap["hex"])):
-            dst_root = destination_hexmap["root"][j]
-            dst_fname = destination_hexmap["fname"][j]
-            dst_hex = destination_hexmap["hex"][j]
-            common_root = Path.joinpath(dst_root, dst_fname)
-            fpath_on_destination = Path.joinpath(self.destination, common_root)
-            expected_path_on_source = Path.joinpath(self.source, common_root)
+        for dst_index, dst_hex in enumerate(self.destination_hexmap["hex"]):
+            common_path = self.destination_hexmap["common_path"][dst_index]
+            fpath_on_destination = Path.joinpath(self.destination, common_path)
+            expected_path_on_source = Path.joinpath(self.source, common_path)
 
             # skip flagged items handled during duplication handling scenario
-            if destination_hexmap["flag"][j] is not None:
+            if self.destination_hexmap["flag"][dst_index]:
                 continue
 
             # hex match << PASS or RENAME
             # both the source & destination targets must have not been flagged previously
-            if dst_hex in source_hexmap["hex"]:
+            if dst_hex in self.source_hexmap["hex"]:
                 # source and\or destination has at least 2 duplicates
-                if destination_hexmap["hex"].count(dst_hex) > 1:
-                    DirSync.log_it(
-                        logger, f"\nHandling duplicates for '{common_root}'\n"
-                    )
-                    self.handle_duplicates(
-                        dst_hex, source_hexmap, destination_hexmap, logger
-                    )
+                if (
+                    self.destination_hexmap["hex"].count(dst_hex) > 1
+                    or self.source_hexmap["hex"].count(dst_hex) > 1
+                ):
+                    self.logger.info(f"Handling duplicates for '{common_path}'\n")
+                    self.handle_duplicates(dst_hex)
 
                 # unique hex match
                 else:
-                    index = source_hexmap["hex"].index(dst_hex)
-                    source_hexmap["flag"][index] = "Z"
+                    src_index = self.source_hexmap["hex"].index(dst_hex)
+                    self.source_hexmap["flag"][src_index] = True
+                    self.destination_hexmap["flag"][dst_index] = True
+
                     # destination path matching << PASS
                     if expected_path_on_source.exists():
-                        DirSync.log_it(logger, f"\nPASS {common_root}\n")
+                        self.logger.info(f"PASS {common_path}\n")
 
                     # path not matching << RENAME
                     else:
                         new_path = Path.joinpath(
                             self.destination,
-                            source_hexmap["root"][index],
-                            source_hexmap["fname"][index],
+                            self.source_hexmap["common_path"][src_index],
                         )
                         rename(fpath_on_destination, new_path)
-                        DirSync.log_it(
-                            logger, f"\nRENAMED {fpath_on_destination} TO {new_path}\n"
+                        self.logger.info(
+                            f"RENAMED {fpath_on_destination} TO {new_path}\n"
                         )
             # no hex match << REMOVE
             else:
                 remove(fpath_on_destination)
-                DirSync.log_it(logger, f"\nDELETED {fpath_on_destination}\n")
+                self.destination_hexmap["flag"][dst_index] = True
+                self.logger.info(f"DELETED {fpath_on_destination}\n")
 
-        return
-
-    def full_dump_to_destination(self, logger: IO):
+    def full_dump_to_destination(self):
+        """
+        Dump entire source content to destination
+        """
         try:
-            copytree(self.source, self.destination)
+            copytree(self.source, self.destination, dirs_exist_ok=True)
 
-        except OSError as XX:
-            if XX.errno == errno.ENOSPC:
-                DirSync.log_it(logger, f"{strerror(XX.errno)}\n")
-                exit()
+        except OSError as disk_err:
+            if disk_err.errno == errno.ENOSPC:
+                self.logger.critical(strerror(disk_err.errno), exc_info=True)
+                exit(1)
 
-        except Exception as X:
-            DirSync.log_it(logger, f"Error: {X}\n")
+        # to be monitored for specific exceptions
+        except Exception:
+            self.logger.error("Error during full dump to destination", exc_info=True)
+            exit(2)
 
-    def selective_dump_to_destination(self, source_hexmap: dict[str, list], logger: IO):
-        # potential conflict handled in the previous stage as directories have been already created
-        # dumping remaining unflagged files
-        for q in range(len(source_hexmap["hex"])):
-            if source_hexmap["flag"][q] is None:
-                root = source_hexmap["root"][q]
-                fname = source_hexmap["fname"][q]
-                src = Path.joinpath(self.source, root, fname)
-                dst = Path.joinpath(self.destination, root, fname)
+    def selective_dump_to_destination(self):
+        """
+        Dumping remaining unflagged files and keep permissions
+        Potential file conflict handled in the previous stage
+        """
+        for fpath, flag in zip(
+            self.source_hexmap["common_path"],
+            self.source_hexmap["flag"],
+        ):
+            if not flag:
+                src = Path.joinpath(self.source, fpath)
+                dst = Path.joinpath(self.destination, fpath)
 
                 try:
                     copy2(src, dst)
-                    DirSync.log_it(logger, f"\n{dst}\n")
-                except OSError as XX:
-                    if XX.errno == errno.ENOSPC:
-                        DirSync.log_it(logger, f"{strerror(XX.errno)}\n")
-                        exit()
-                except Exception as X:
-                    DirSync.log_it(logger, f"{X}\n")
+                    self.logger.info(f"\n{dst}\n")
 
-    def one_way_sync(self, source_hexmap, destination_hexmap, source_tree, destination_tree, logger):
-        # initial full dump to destination storage
+                except OSError as disk_err:
+                    if disk_err.errno == errno.ENOSPC:
+                        self.logger.critical(strerror(disk_err.errno), exc_info=True)
+                        exit(1)
+
+                except Exception:
+                    self.logger.error(
+                        "Error caught during selective dump", exc_info=True
+                    )
+                    exit(2)
+
+    def one_way_sync(self):
+        """
+        Encapsulates the main high level logic of the sync actions:
+        Either perform full sync or 1 by 1 matching of destination items against source
+        """
+
+        def format_log_item(text):
+            # '2023-05-17 11:27:44,411 - INFO - ' is 33 char
+            formatted = f"{text}\n" f"{(33 + len(text)) * '`'}"
+            return formatted
+
+        # Update initialized
+        self.source_hexmap, self.source_tree = DirSync.generate_xmap(
+            self.source, self.logger
+        )
+        self.destination_hexmap, self.destination_tree = DirSync.generate_xmap(
+            self.destination, self.logger
+        )
+
+        # full dump to destination storage if it is empty and the source is not
         if len(listdir(self.destination)) == 0 and len(listdir(self.source)) != 0:
-            DirSync.log_it(logger, f"\n\n\nPERFORMING FULL SYNC\n\n")
-            self.full_dump_to_destination(logger)
+            self.logger.info("PERFORMING FULL SYNC\n\n")
+            self.full_dump_to_destination()
+
+        # parse destination hexmap items 1 by 1
         else:
             # both tree sets have only the common root extracted during hexmap generation
-            DirSync.log_it(
-                logger, "\n\n\nUPDATING DESTINATION TREE\n`````````````````````````\n"
-            )
-            self.mirror_source_dir(source_tree, logger)
+            self.logger.info(format_log_item("UPDATING DESTINATION TREE"))
+            self.mirror_source_dir()
 
             # cleanup on destination storage
-            DirSync.log_it(logger, "\n\n\n\nFILE CLEANUP\n````````````\n")
-            self.diff_hex(source_hexmap, destination_hexmap, logger)
+            self.logger.info(format_log_item("FILE CLEANUP"))
+            self.diff_hex()
 
             # remove dirs after file cleanup
-            DirSync.log_it(
-                logger,
-                "\n\n\nREMOVING OBSOLETE DIRECTORIES\n``````````````````````````````\n",
-            )
-            self.rm_obsolete_dir(destination_tree, logger)
+            self.logger.info(format_log_item("REMOVING OBSOLETE DIRECTORIES"))
+            self.rm_obsolete_dir()
 
             # dump left-overs from source
-            DirSync.log_it(logger, "\n\n\nADDING NEW CONTENT\n```````````````````\n")
-            self.selective_dump_to_destination(source_hexmap, logger)
+            self.logger.info(format_log_item("ADDING NEW CONTENT"))
+            self.selective_dump_to_destination()
 
         return datetime.now()
 
 
-def validate_arg():
+def validate_arg() -> argparse.Namespace:
+    """
+    Validate user input according to specifications
+    :return: parsed arguments
+    """
     parser = argparse.ArgumentParser()
+
     parser.add_argument(
         "-s",
         "--source_path",
@@ -507,61 +500,89 @@ def validate_arg():
     return parser.parse_args()
 
 
+def validate_log_path(log_path: Path):
+    """
+    Validate existing log directory path or create a new one if the parent exists
+    """
+    print(f'Validating log directory: "{log_path}"\n')
+
+    # target log folder may not exist along with the parent
+    if not log_path.exists() and not log_path.parent.exists():
+        exit(
+            f'Directory "{log_path.name}" does not exist, nor the parent "{log_path.parent.name}"\n'
+            "This program will now exit, please use an existing directory to store the logs.\n"
+        )
+
+    # only the target log folder may not exist
+    if log_path.parent.exists() and not log_path.exists():
+        print(f"The directory {log_path.name} does not exist, creating it now.\n")
+        mkdir(log_path)
+
+    print(f"Saving logs in {log_path.resolve()}\n")
+
+
+def setup_logging(log_path: Path):
+    """
+    Return console & rotating file logger
+    """
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    log_file = Path.joinpath(log_path, "dirSync.log")
+
+    # console & file handlers
+    console_handler = logging.StreamHandler()
+    file_handler = TimedRotatingFileHandler(log_file, backupCount=32, when="midnight")
+
+    # attach formatter to handlers
+    console_format = logging.Formatter("%(message)s")
+    file_format = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+
+    console_handler.setFormatter(console_format)
+    file_handler.setFormatter(file_format)
+
+    # attach handlers to logger
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+
+    return logger
+
+
 if __name__ == "__main__":
     # validate input parameters
     argz = validate_arg()
 
     if None in argz.__dict__.values():
         print(__doc__)
-        exit()
+        exit("Incorrect parameters")
 
     # create the log directory if the input path does not exist
-    DirSync.setup_log_path(argz.log_path)
+    argz.log_path = argz.log_path.resolve()
+    validate_log_path(argz.log_path)
 
-    # EXECUTE PROGRAM
-    # On lack of disk space the program will exit
+    # setup logging
+    logg = setup_logging(argz.log_path)
+
+    # resolve the time interval
     timeframe = {"S": 1, "M": 60, "H": 3600, "D": 86400}
     timeframe = argz.interval * timeframe[argz.time_unit.upper()]
 
+    # build object
     dir_sync = DirSync(
-        argz.source_path,
-        argz.destination_path,
-        timeframe,
-        argz.log_path
+        argz.source_path.resolve(), argz.destination_path.resolve(), logg
     )
 
     while True:
         sync_start_time = datetime.now()
-        # log rotate based on current date
-        logg = dir_sync.new_log_file(sync_start_time)
-        # get the source directory hash map
-        src_hexmap, src_tree = DirSync.generate_hexmap(dir_sync.source, logg)
-        # get the destination directory hash map
-        dest_hexmap, dest_tree = DirSync.generate_hexmap(dir_sync.destination, logg)
+        logg.info("STARTING SYNC\n\n")
+        sync_finish_time = dir_sync.one_way_sync()
+        logg.info("FINISHED SYNC\n\n%s", 120 * "~")
 
-        DirSync.log_it(
-            logg, f"\n\n\nStarting sync at {sync_start_time.strftime('%y-%m-%d %H:%M')}\n"
-        )
-
-        sync_finish_time = dir_sync.one_way_sync(
-            src_hexmap,
-            dest_hexmap,
-            src_tree,
-            dest_tree,
-            logg
-        )
-
-        DirSync.log_it(
-            logg,
-            f"\n\n\nFinished sync at {datetime.now().strftime('%y-%m-%d %H:%M')}\n\n\n\n{120 * '~'}",
-        )
-        # close log file to allow reading of the last log items
-        logg.close()
         # determine last sync duration to cut from the interval sleep time until next sync
         sync_duration = (sync_start_time - sync_finish_time).seconds
-        sync_delta = dir_sync.interval - sync_duration
+        sync_delta = timeframe - sync_duration
+
         # Sleep for the remaining time interval
         if sync_delta <= 0:
-            sleep(dir_sync.interval)
+            sleep(timeframe)
         else:
             sleep(sync_delta)
