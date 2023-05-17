@@ -46,7 +46,6 @@ try:
 
 	print(separator)
 
-	# pdb.set_trace()
 	for q in tagz:
 		for xtree in range(len(header)):
 			if xtree == 0:
