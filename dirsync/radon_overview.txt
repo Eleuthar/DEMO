@@ -1,60 +1,75 @@
+************* Module src.dir_sync
+src\dir_sync.py:23:0: W0622: Redefining built-in 'exit' (redefined-builtin)
+src\dir_sync.py:103:48: C2801: Unnecessarily calls dunder method __str__. Use str built-in function. (unnecessary-dunder-call)
+src\dir_sync.py:205:8: C0200: Consider using enumerate instead of iterating with range and len (consider-using-enumerate)
+src\dir_sync.py:245:12: C0200: Consider using enumerate instead of iterating with range and len (consider-using-enumerate)
+src\dir_sync.py:382:15: W0718: Catching too general exception Exception (broad-exception-caught)
+src\dir_sync.py:408:23: W0718: Catching too general exception Exception (broad-exception-caught)
+
+------------------------------------------------------------------
+Your code has been rated at 9.75/10 (previous run: 9.75/10, -0.00)
+
+
 CYCLOMATIC COMPLEXITY
 ``````````````````````
-C:\Users\Florin Bujoreanu\PycharmProjects\dirSync\src\dir_sync.py
-    M 317:4 DirSync.handle_duplicates - C
-    M 387:4 DirSync.diff_hex - B
-    M 455:4 DirSync.selective_dump_to_destination - B
-    C 23:0 DirSync - A
-    M 85:4 DirSync.setup_log_path - A
-    M 202:4 DirSync.rm_obsolete_dir - A
-    M 184:4 DirSync.mirror_source_dir - A
-    M 249:4 DirSync.duplicate_pass_check - A
-    M 283:4 DirSync.rename_duplicates - A
-    M 443:4 DirSync.full_dump_to_destination - A
-    M 475:4 DirSync.one_way_sync - A
-    M 143:4 DirSync.generate_hexmap - A
-    M 222:4 DirSync.dump_source_copies - A
-    M 237:4 DirSync.remove_old_copies - A
-    M 41:4 DirSync.validate_arg - A
-    M 122:4 DirSync.generate_file_hex - A
-    M 26:4 DirSync.__init__ - A
-    M 107:4 DirSync.new_log_file - A
-    M 117:4 DirSync.log_it - A
-	
+(venv) PS C:\Users\Florin Bujoreanu\PycharmProjects\dirSync> python -m radon cc .\src\dir_sync.py
+.\src\dir_sync.py
+	M 270:4 DirSync.handle_duplicates - C
+	M 317:4 DirSync.diff_hex - B
+	M 386:4 DirSync.selective_dump_to_destination - B
+	F 503:0 validate_log_path - A
+	C 26:0 DirSync - A
+	M 138:4 DirSync.rm_obsolete_dir - A
+	M 122:4 DirSync.mirror_source_dir - Arights reserved.
+	M 190:4 DirSync.duplicate_pass_check - A
+	M 230:4 DirSync.rename_duplicates - A
+	M 369:4 DirSync.full_dump_to_destination - A
+	M 65:4 DirSync.generate_xmap - A
+	M 155:4 DirSync.dump_source_copies - A
+	M 173:4 DirSync.remove_old_copies - A
+	M 414:4 DirSync.one_way_sync - A
+	M 45:4 DirSync.generate_file_hex - A
+	F 459:0 validate_arg - A
+	F 524:0 setup_logging - A
+	M 34:4 DirSync.__init__ - A
+
 
 MAINTAINABILITY INDEX
 ``````````````````````
-C:\Users\Florin Bujoreanu\PycharmProjects\dirSync\src\dir_sync.py - A
+(venv) PS C:\Users\Florin Bujoreanu\PycharmProjects\dirSync> python -m radon mi .\src\dir_sync.py
+	.\src\dir_sync.py - A
 
 
-HAL
-````
-C:\Users\Florin Bujoreanu\PycharmProjects\dirSync\src\dir_sync.py:
-    h1: 12
-    h2: 68
-    N1: 42
-    N2: 79
-    vocabulary: 80
-    length: 121
-    calculated_length: 456.967023213677
-    volume: 764.9532994813708
-    difficulty: 6.970588235294118
-    effort: 5332.174469914261
-    time: 296.2319149952367
-    bugs: 0.25498443316045694
-
-
-RAW
-````
-C:\Users\Florin Bujoreanu\PycharmProjects\dirSync\src\dir_sync.py
-    LOC: 552
-    LLOC: 252
-    SLOC: 374
-    Comments: 46
-    Single comments: 46
-    Multi: 69
-    Blank: 63
+RAW metrics
+````````````
+venv) PS C:\Users\Florin Bujoreanu\PycharmProjects\dirSync> python -m radon raw .\src\dir_sync.py
+.\src\dir_sync.py
+    LOC: 588
+    LLOC: 268
+    SLOC: 343
+    Comments: 50
+    Single comments: 50
+    Multi: 107
+    Blank: 88
     - Comment Stats
-        (C % L): 8%
-        (C % S): 12%
-        (C + M % L): 21%
+        (C % L): 9%
+        (C % S): 15%
+        (C + M % L): 27%
+	
+	
+Halstead complexity
+````````````````````
+(venv) PS C:\Users\Florin Bujoreanu\PycharmProjects\dirSync> python -m radon hal .\src\dir_sync.py
+.\src\dir_sync.py:
+    h1: 12
+    h2: 73
+    N1: 45
+    N2: 84
+    vocabulary: 85
+    length: 129
+    calculated_length: 494.87674280689515
+    volume: 826.8114307617636
+    difficulty: 6.904109589041096
+    effort: 5708.396727451081
+    time: 317.13315152506004
+    bugs: 0.2756038102539212
