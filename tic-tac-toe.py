@@ -1,193 +1,202 @@
-from random import randrange
+from random import choice
 from copy import deepcopy
-
-# board game template
-new_board = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"]]
-
-# player token
-sign = {"Computer": "X", "You": "O"}
-
-# the occupied squares will be added on each player & bot move
-marked_square = []
-
-# win combination template
-# the first key to have all values replaced with either 'X' or 'O' will end the game
-new_combo = {
-    "row1": ["1", "2", "3"],
-    "row2": ["4", "5", "6"],
-    "row3": ["7", "8", "9"],
-    "col1": ["1", "4", "7"],
-    "col2": ["2", "5", "8"],
-    "col3": ["3", "6", "9"],
-    "diag1": ["1", "5", "9"],
-    "diag2": ["3", "5", "7"],
-}
-
-# make a copy of the win board & win combo
-board = [q[:] for q in new_board]
-combo = deepcopy(new_combo)
+from os import system
+from platform import platform
 
 
-# ~~~~~~~~~~~~~~~~~~ METHODS ~~~~~~~~~~~~~~~~~~ #
+class TicTacToe:
 
+    # board game template
+    new_board = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"]]
 
-def display_board():
-    for z in range(3):
-        print("+-------+-------+-------+")
-        print("|       |       |       |")
-        for q in range(3):
-            if q == 2:
-                print("|  ", board[z][q], "  |")
+    # win combination template
+    # the first key to have all values replaced with either 'X' or 'O' will end the game
+    new_combo_map = {
+        "row_top": ["1", "2", "3"],
+        "row_mid": ["4", "5", "6"],
+        "row_bot": ["7", "8", "9"],
+        "col_left": ["1", "4", "7"],
+        "col_mid": ["2", "5", "8"],
+        "col_right": ["3", "6", "9"],
+        "diag_1": ["1", "5", "9"],
+        "diag_2": ["3", "5", "7"],
+    }
+    # player tokens
+    tokens = {"Computer": "X", "You": "O"}
+
+    def __init__(self):
+        self.op_sys = platform()
+        self.board: list[list[str]] = deepcopy(TicTacToe.new_board)
+        self.combo_map: dict[str, list[str]] = deepcopy(TicTacToe.new_combo_map)
+        self.free_squares: list[str] = [str(x) for x in range(1, 10)]
+        self.player_winning_combo: list[str] = []
+        self.comp_winning_combo: list[str] = []
+
+    def __del__(self):
+        print("\n\nGOOD BYE! It's been a pleasure.\n\n")
+
+    def display_board(self):
+
+        if 'Windows' in self.op_sys:
+            system('cls')
+        else:
+            system('clear')
+
+        for z in range(3):
+            print(f"+{7*'-'}+{7*'-'}+{7*'-'}")
+            print(f"|{7*' '}|{7*' '}|{7*' '}|")
+            for q in range(3):
+                if q == 2:
+                    print("|  ", self.board[z][q], "  |")
+                else:
+                    print("|  ", self.board[z][q], "  ", end="")
+            print(f"|{7*' '}|{7*' '}|{7*' '}|")
+        print(f"+{7*'-'}+{7*'-'}+{7*'-'}")
+
+    # ask the user their move & validate input
+    # update the board & win combo copies
+    def user_move(self):
+        try:
+            # keep asking if user choice is not valid
+            o = input("Enter your move!\n")
+            if not o.isnumeric():
+                raise ValueError
+
+            # keep asking if user choice is not valid
+            elif 9 < int(o) < 1:
+                print("That is not in the range of 1-9, try again!\n")
+                self.user_move()
+
+            # restart main function if user choice square is already taken
+            elif o not in self.free_squares:
+                print("Spot taken! Pick another!\n")
+                self.user_move()
             else:
-                print("|  ", board[z][q], "  ", end="")
-        print("|       |       |       |")
-    print("+-------+-------+-------+")
+                return o, "O"
 
+        except ValueError:
+            print("This is not a number, try again!\n")
+            self.user_move()
 
-# ask the user their move & validate input
-# update the board & win combo copies
-def enter_move():
-    try:
-        # restart main function if user choice is not numeric
-        o = input("Enter your move!\n")
-        if not o.isnumeric():
-            raise ValueError
+    # draw the computer's move and update the board
+    def bot_move(self):
 
-        # restart main function if user choice is not in range
-        elif int(o) not in range(1, 10):
-            print("That is not in the range of 1-9, try again!\n")
-            enter_move()
+        # go for the win!
+        if len(self.comp_winning_combo) != 0:
+            key = self.comp_winning_combo[0]
+            for x in self.combo_map[key]:
+                if x.isdigit():
+                    return x, "X"
 
-        # restart main function if user choice square is already taken
-        elif o in marked_square:
-            print("Spot taken! Pick another!\n")
-            enter_move()
+        # prevent win
+        elif len(self.player_winning_combo) != 0:
+            key = self.player_winning_combo[0]
+            for x in self.combo_map[key]:
+                if x.isdigit():
+                    return x, "X"
 
         else:
-            # replace corresponding square value with user mark
-            # if the value is not found in the 1st row, it will be found in either 2nd or 3rd
-            for q in range(3):
-                if o in board[q]:
-                    marked_square.append(board[q][board[q].index(o)])
-                    board[q][board[q].index(o)] = "O"
+            # get the current best choices
+            temp_options = []
+            for combo_key, combo in self.combo_map.items():
+                if "X" in combo and "O" not in combo:
+                    for x in combo:
+                        if x.isdigit():
+                            temp_options.append(x)
 
-                elif o not in board[q]:
-                    continue
-
-        # update win combination table, useful to determine the winner
-        for q, v in combo.items():
-            if o in v:
-                v[v.index(o)] = "O"
-
-    except ValueError:
-        print("This is not a number, try again!\n")
-        enter_move()
-
-
-# The function browses the board and builds a list of all the free squares;
-# the list consists of tuples, while each tuple is a pair of row and column numbers.
-def free_squares():
-    moves = []
-    for z in range(3):
-        for q in range(3):
-            if board[q][z] != "X" and board[q][z] != "O":
-                tup = (q, z)
-                moves.append(tup)
+            if len(temp_options) != 0:
+                return choice(temp_options), "X"
             else:
-                continue
-    return len(moves)
+                return choice(self.free_squares), "X"
 
+    def update_tables(self, board_number, token):
+        """
+        Update win combination table
+        Replace the game board numbered square with token - "X" or "O"
+        Remove tagged number from free_squares
+        """
+        # remove the square number last tagged
+        self.free_squares.remove(board_number)
 
-# analyze the board status in order to check if
-# the player using 'O's or 'X's has won the game
-def victory_for():
-    for sign_key, sign_value in sign.items():
-        for j in combo.values():
-            if j.count(sign_value) != 3:
-                continue
-            elif j.count(sign_value) == 3:
-                print(sign_key, " win!\n")
-                return True
-            else:
-                return None
+        # game board
+        for row in range(3):
+            if board_number in self.board[row]:
+                index = self.board[row].index(board_number)
+                self.board[row][index] = token
+                break
 
+        # combo table
+        for combo_key, combo in self.combo_map.items():
+            if board_number in combo:
+                index = combo.index(board_number)
+                combo[index] = token
+                self.combo_map[combo_key] = combo
 
-# draw the computer's move and update the board
-def draw_random_bot_move():
-    x = str(randrange(1, 10))
+        # refresh list of current winning moves
+        self.player_winning_combo: list[str] = []
+        self.comp_winning_combo: list[str] = []
 
-    if x in marked_square:
-        draw_random_bot_move()
+        for combo_key, combo in self.combo_map.items():
+            if combo.count("O") == 2:
+                if 'X' not in self.combo_map[combo_key]:
+                    self.player_winning_combo.append(combo_key)
+            elif combo.count("X") == 2:
+                if 'O' not in self.combo_map[combo_key]:
+                    self.comp_winning_combo.append(combo_key)
 
-    for q in range(3):
-        if x not in board[q]:
-            continue
+    # analyze the board status in order to check if
+    # the player using 'O's or 'X's has won the game
+    @staticmethod
+    def victory(combo_map):
+        for win_move in combo_map.values():
+            for tag_owner, token in TicTacToe.tokens.items():
+                if win_move.count(token) == 3:
+                    print(tag_owner, " win!\n")
+                    return True
+        else:
+            return False
 
-        elif x in board[q]:
-            marked_square.append(board[q][board[q].index(x)])
-            board[q][board[q].index(x)] = "X"
-
-    # update combo
-    for q, v in combo.items():
-        if x in v:
-            v[v.index(x)] = "X"
-
-
-# restart game menu
-def rr_game():
-    game = input("Play a new game?\nY or N: ")
-    if game.upper() == "Y":
-        return True
-    elif game.upper() == "N":
-        return False
-    else:
-        print("Looks like you made a typo :)\n")
-        rr_game()
-
-
-# restore the initial values of the global var for a new game
-def reinit():
-    global board, combo, marked_square
-
-    board = [q[:] for q in new_board]
-    combo = deepcopy(new_combo)
-    marked_square.clear()
-
-
-# start a new game or end program
-def game_over():
-    if rr_game():
-        reinit()
-        return
-    else:
-        raise SystemExit
+    # restart game menu
+    @staticmethod
+    def restart():
+        new_game = input("Play a new game?\nY or N: ")
+        if new_game.upper() == "Y":
+            return True
+        elif new_game.upper() == "N":
+            return False
+        else:
+            print("Looks like you made a typo :)\n")
+            TicTacToe.restart()
 
 
 # ~~~~~~~~~~~~~~~  GAME FLOW ~~~~~~~~~~~~~~~ #
-
 while True:
+
+    game = TicTacToe()
+    game.display_board()
     # players take turns until there are 2 free squares left
     # get the victor status after each turn
-    while free_squares() > 1:
-        # bot move
-        draw_random_bot_move()
-        display_board()
-        if victory_for():
-            game_over()
+    while len(game.free_squares) >= 0:
 
-        # player move
-        enter_move()
-        display_board()
-        if victory_for():
-            game_over()
+        board_no, tokn = game.user_move()
+        game.update_tables(board_no, tokn)
+        game.display_board()
 
-        # the last move belongs to the bot
-        # if he doesn't win, it is a tie
-        if free_squares() == 1:
-            draw_random_bot_move()
-            display_board()
-            if victory_for():
-                game_over()
-            else:
-                print("IT'S A TIE!!!\n")
-                game_over()
+        if TicTacToe.victory(game.combo_map):
+            break
+
+        if len(game.free_squares) == 0:
+            print("IT'S A TIE!!!\n")
+            break
+
+        board_no, tokn = game.bot_move()
+        game.update_tables(board_no, tokn)
+        game.display_board()
+
+        if TicTacToe.victory(game.combo_map):
+            break
+
+    if not TicTacToe.restart():
+        break
+    else:
+        del game
