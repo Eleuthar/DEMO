@@ -5,7 +5,9 @@ from platform import platform
 
 
 class TicTacToe:
-
+"""
+Play a game of TicTacToe with a competitive bot going for win moves or preventing your win.
+"""
     # board game template
     new_board = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"]]
 
@@ -33,9 +35,16 @@ class TicTacToe:
         self.comp_winning_combo: list[str] = []
 
     def __del__(self):
+        """
+        Instance deconstructor
+        Triggered after every game, the message is visible on exiting the game
+        """
         print("\n\nGOOD BYE! It's been a pleasure.\n\n")
 
     def display_board(self):
+        """
+        Clear the screen and draw the game board in place with updated move
+        """
 
         if 'Windows' in self.op_sys:
             system('cls')
@@ -53,9 +62,11 @@ class TicTacToe:
             print(f"|{7*' '}|{7*' '}|{7*' '}|")
         print(f"+{7*'-'}+{7*'-'}+{7*'-'}")
 
-    # ask the user their move & validate input
-    # update the board & win combo copies
     def user_move(self):
+    """
+    Ask the player their move & validate input
+    Update the board & combo map
+    """
         try:
             # keep asking if user choice is not valid
             o = input("Enter your move!\n")
@@ -78,9 +89,10 @@ class TicTacToe:
             print("This is not a number, try again!\n")
             self.user_move()
 
-    # draw the computer's move and update the board
     def bot_move(self):
-
+    """
+    Draw the computer's move and update the board
+    """
         # go for the win!
         if len(self.comp_winning_combo) != 0:
             key = self.comp_winning_combo[0]
@@ -144,11 +156,11 @@ class TicTacToe:
                 if 'O' not in self.combo_map[combo_key]:
                     self.comp_winning_combo.append(combo_key)
 
-    # analyze the board status in order to check if
-    # the player using 'O's or 'X's has won the game
-    @staticmethod
-    def victory(combo_map):
-        for win_move in combo_map.values():
+    def victory(self):
+    """
+    Analyze the board status and check if someone has won the game
+    """
+        for win_move in self.combo_map.values():
             for tag_owner, token in TicTacToe.tokens.items():
                 if win_move.count(token) == 3:
                     print(tag_owner, " win!\n")
@@ -156,9 +168,11 @@ class TicTacToe:
         else:
             return False
 
-    # restart game menu
     @staticmethod
     def restart():
+    """
+    Ask the player for restart
+    """
         new_game = input("Play a new game?\nY or N: ")
         if new_game.upper() == "Y":
             return True
@@ -168,35 +182,38 @@ class TicTacToe:
             print("Looks like you made a typo :)\n")
             TicTacToe.restart()
 
+            
+# ~~~~~~~~~~~~~~~  PLAY GAME ~~~~~~~~~~~~~~~ #
 
-# ~~~~~~~~~~~~~~~  GAME FLOW ~~~~~~~~~~~~~~~ #
-while True:
+if __name__ == "__main__":
 
-    game = TicTacToe()
-    game.display_board()
-    # players take turns until there are 2 free squares left
-    # get the victor status after each turn
-    while len(game.free_squares) >= 0:
+    while True:
 
-        board_no, tokn = game.user_move()
-        game.update_tables(board_no, tokn)
+        game = TicTacToe()
         game.display_board()
+        # players take turns until there are 2 free squares left
+        # get the victor status after each turn
+        while len(game.free_squares) >= 0:
 
-        if TicTacToe.victory(game.combo_map):
-            break
+            board_no, tokn = game.user_move()
+            game.update_tables(board_no, tokn)
+            game.display_board()
 
-        if len(game.free_squares) == 0:
-            print("IT'S A TIE!!!\n")
-            break
+            if game.victory():
+                break
 
-        board_no, tokn = game.bot_move()
-        game.update_tables(board_no, tokn)
-        game.display_board()
+            if len(game.free_squares) == 0:
+                print("IT'S A TIE!!!\n")
+                break
 
-        if TicTacToe.victory(game.combo_map):
-            break
+            board_no, tokn = game.bot_move()
+            game.update_tables(board_no, tokn)
+            game.display_board()
 
-    if not TicTacToe.restart():
-        break
-    else:
-        del game
+            if game.victory():
+                break
+
+        if not TicTacToe.restart():
+            raise SystemExit
+        else:
+            del game
