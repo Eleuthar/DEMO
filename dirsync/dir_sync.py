@@ -68,27 +68,29 @@ class DirSync:
         target: Path, logger: logging.Logger
     ) -> tuple[dict[str, list], set[Path]]:
         """
-        Acts as a setter for:
+        Updates values of:
             source_hexmap, source_tree,
             destination_hexmap, destination_tree
 
         Map every file under the target directory to its own
             hex digest & path on the same index level.
+
         Gather unique root paths.
 
         :param target: either source path or destination path
         :param logger: auto-rotating instance logger
         :return:
-        dict with keys:'root', 'file_name', 'hex', 'flag'
-            root[j] = full path on the target directory up to the filename
-            common_path[j] = path from common root including the filename;
-                the common root being the slice between the target & filename
-            full_path[j]
-            hex[j] = generated hash digest
-            flag[j] = False
-                The flag is set to True during diff_hex.
-                Necessary in the multiple duplication scenario, to avoid unnecessary CPU load
-                  if big files with the same digest are duplicated and|or renamed
+            dict with keys:'root', 'file_name', 'hex', 'flag'
+                root[j] = full path on the target directory up to the filename
+                common_path[j] = path from common root including the filename;
+                    the common root being the slice between the target & filename
+                full_path[j]
+                hex[j] = generated hash digest
+                flag[j] = False
+                    The flag is set to True during diff_hex.
+                    Necessary in the multiple duplication scenario, to avoid unnecessary CPU load
+                      if big files with the same digest are duplicated and|or renamed
+
             Set of empty & non-empty directories used for obsolete directory removal
         """
         target_tree = set()
@@ -117,6 +119,7 @@ class DirSync:
         with ProcessPoolExecutor() as executor:
             digested = executor.map(DirSync.generate_file_hex, hexmap["full_path"])
 
+        # extract checksum from generator
         for checksum in digested:
             hexmap["hex"].append(checksum)
 
@@ -164,8 +167,8 @@ class DirSync:
     def dump_source_copies(self, ndx_on_src_hexmap: list[int]):
         """
         Method called upon source directory files during duplicate handling scenario
-        Source has more duplicate files than the destination
-        Copy the source directory duplicates that are not already existing in the destination folder
+        If source has more duplicate files than the destination,
+            copy the remaining duplicates not yet mirrored
 
         :param ndx_on_src_hexmap: the index of each duplicate in the source hexmap
         """
@@ -280,7 +283,6 @@ class DirSync:
         """
         Rename or remove extra duplicates on destination path
         Copy new duplicates from source
-        :return: action counter for later logging
         """
         for dst_index, dst_hex in enumerate(self.destination_hexmap["hex"]):
             # skip flagged items handled during duplication handling scenario
@@ -430,7 +432,6 @@ class DirSync:
     def format_log_item(text) -> str:
         """
         Used only for certain log entries under one_way_sync
-        :return:
         """
         # '2023-05-17 11:27:44,411 - INFO - ' is 33 char
         formatted = f"{text}\n" f"{(33 + len(text)) * '`'}"
@@ -439,7 +440,8 @@ class DirSync:
     def one_way_sync(self):
         """
         Encapsulates the main high level logic of the sync actions:
-        Either perform full sync or 1 by 1 matching of destination items against source
+            - perform full sync
+            - 1 by 1 matching between destination items against source
         """
 
         # Update initialized
