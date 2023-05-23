@@ -376,7 +376,7 @@ class DirSync:
         """
         Remove destination files not matching the source
         """
-        for dst_index, dst_hex in enumerate(self.destination_hexmap["hex"]):
+        for dst_index in range(len(self.destination_hexmap["hex"])):
             if not self.destination_hexmap["flag"][dst_index]:
                 full_path = self.destination_hexmap['full_path'][dst_index]
                 remove(self.destination_hexmap["full_path"][dst_index])
