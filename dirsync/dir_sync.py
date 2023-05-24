@@ -77,7 +77,7 @@ class DirSync:
 
         Gather unique root paths.
 
-        :param target: either source path or destination path
+        :param target: either source or destination path
         :param logger: auto-rotating instance logger
         :return:
             dict with keys:'root', 'file_name', 'hex', 'flag'
@@ -124,6 +124,7 @@ class DirSync:
             hexmap["hex"].append(checksum)
 
         # record & print out the current file-digest mapping
+        logger.info(f"Hash mapping for {target}\n")
         for index, common_path in enumerate(hexmap["common_path"]):
             logger.info(f"{common_path}\n{hexmap['hex'][index]}\n{120 * '-'}")
 
@@ -143,7 +144,7 @@ class DirSync:
                 current_path = Path.joinpath(self.destination, next_level)
                 if not current_path.exists():
                     mkdir(current_path)
-                    self.logger.info(f"Created '{current_path}\\' \n")
+                    self.logger.info(f"Created '{current_path}' \n")
 
     def rm_obsolete_dir(self):
         """
@@ -162,7 +163,7 @@ class DirSync:
                 and rmtree_target.exists()
             ):
                 rmtree(rmtree_target, ignore_errors=True)
-                self.logger.info(f"Removed '{rmtree_target}\\' \n")
+                self.logger.info(f"Removed '{rmtree_target}' \n")
 
     def dump_source_copies(self, ndx_on_src_hexmap: list[int]):
         """
@@ -529,6 +530,8 @@ def validate_log_path(log_path: Path):
     Validate existing log directory path or create a new one if the parent exists
     """
     print(f'Validating log directory: "{log_path}"\n')
+
+    log_path.resolve()
 
     # target log folder may not exist along with the parent
     if not log_path.exists() and not log_path.parent.exists():
