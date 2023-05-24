@@ -45,37 +45,39 @@ from shutil import copytree, rmtree
 
 
 class DirSyncTestCase(unittest.TestCase):
-
     dir_sync = None
 
     @classmethod
     def setUpClass(cls) -> None:
         # desynchronized test folders
-        copytree(Path('./test folders/source'), Path('./source'))
-        copytree(Path('./test folders/destination'), Path('./destination'))
+        copytree(Path("./test folders/source"), Path("./source"))
+        copytree(Path("./test folders/destination"), Path("./destination"))
 
         # setup log directory & file
-        log_path = Path('logz').resolve()
+        log_path = Path("logz").resolve()
         validate_log_path(log_path)
         logg = setup_logging(log_path)
 
         # new sync object
-        src = Path('source').resolve()
-        dst = Path('destination').resolve()
+        src = Path("source").resolve()
+        dst = Path("destination").resolve()
         cls.dir_sync = DirSync(src, dst, 15, logg)
-        cls.dir_sync.source_hexmap, cls.dir_sync.source_tree = DirSync.generate_xmap(src, logg)
-        cls.dir_sync.destination_hexmap, cls.dir_sync.destination_tree = DirSync.generate_xmap(dst, logg)
+        cls.dir_sync.source_hexmap, cls.dir_sync.source_tree = DirSync.generate_xmap(
+            src, logg
+        )
+        (
+            cls.dir_sync.destination_hexmap,
+            cls.dir_sync.destination_tree,
+        ) = DirSync.generate_xmap(dst, logg)
 
     @classmethod
     def tearDownClass(cls) -> None:
         # remove folders
-        rmtree('./source')
-        rmtree('./destination')
+        rmtree("./source")
+        rmtree("./destination")
 
     def test_generate_hex(self):
-        target = Path(
-            "test folders/destination/1. Auth.pdf"
-        ).resolve()
+        target = Path("test folders/destination/1. Auth.pdf").resolve()
         digest = DirSync.generate_file_hex(target)
         self.assertEqual(isinstance(digest, str), True)
 
@@ -87,7 +89,7 @@ class DirSyncTestCase(unittest.TestCase):
                 Path.exists(Path("destination/Folder 2/to mirror 1"))
                 and Path.exists(Path("destination/Folder 2/to mirror 1/to mirror 2"))
             ),
-            True
+            True,
         )
 
     # 2nd SYNC phase:
@@ -99,11 +101,14 @@ class DirSyncTestCase(unittest.TestCase):
         self.assertEqual(
             (
                 not Path.exists(Path("destination/Folder 2/to be removed.xml"))
-                and not Path.exists(Path(
-                "destination/Folder 1/Folder 3/to be deleted 1/to be deleted 2"
-                "/to be removed 3/to be removed 5/to be replaced.pptx"))
+                and not Path.exists(
+                    Path(
+                        "destination/Folder 1/Folder 3/to be deleted 1/to be deleted 2"
+                        "/to be removed 3/to be removed 5/to be replaced.pptx"
+                    )
+                )
             ),
-            True
+            True,
         )
 
     # 3rd SYNC phase
@@ -117,28 +122,27 @@ class DirSyncTestCase(unittest.TestCase):
         src_file_duplicates = []
         dest_file_duplicates = []
 
-        for (dir_path, dir_name, fname) in walk('source'):
-            if fname == '1. Auth.pdf':
+        for dir_path, dir_name, fname in walk("source"):
+            if fname == "1. Auth.pdf":
                 src_file_duplicates.append(fname)
 
-        for (dir_path, dir_name, fname) in walk('destination'):
-            if fname == '1. Auth.pdf':
+        for dir_path, dir_name, fname in walk("destination"):
+            if fname == "1. Auth.pdf":
                 dest_file_duplicates.append(fname)
 
-        self.assertEqual(
-            len(src_file_duplicates) == len(dest_file_duplicates),
-            True
-        )
+        self.assertEqual(len(src_file_duplicates) == len(dest_file_duplicates), True)
 
     # 4th SYNC phase
     def test_handle_unique_matching(self):
         DirSyncTestCase.dir_sync.handle_unique_match()
         self.assertEqual(
             (
-                Path.exists(Path("destination/New folder/unique matching.txt").resolve())
+                Path.exists(
+                    Path("destination/New folder/unique matching.txt").resolve()
+                )
                 and Path.exists(Path("source/New folder/unique matching.txt").resolve())
             ),
-            True
+            True,
         )
 
     # 5th SYNC phase
@@ -149,11 +153,21 @@ class DirSyncTestCase(unittest.TestCase):
         DirSyncTestCase.dir_sync.rm_obsolete_dir()
         self.assertEqual(
             (
-                not Path.exists(Path("destination/Folder 1/Folder 3/to be deleted 1/to be deleted 2/to be removed 3"))
-                and not Path.exists(Path("destination/Folder 1/Folder 3/to be deleted 1/to be deleted 2/"))
-                and not Path.exists(Path("destination/Folder 1/Folder 3/to be deleted 1"))
+                not Path.exists(
+                    Path(
+                        "destination/Folder 1/Folder 3/to be deleted 1/to be deleted 2/to be removed 3"
+                    )
+                )
+                and not Path.exists(
+                    Path(
+                        "destination/Folder 1/Folder 3/to be deleted 1/to be deleted 2/"
+                    )
+                )
+                and not Path.exists(
+                    Path("destination/Folder 1/Folder 3/to be deleted 1")
+                )
             ),
-            True
+            True,
         )
 
     # 6th SYNC phase
@@ -162,26 +176,26 @@ class DirSyncTestCase(unittest.TestCase):
         DirSyncTestCase.dir_sync.selective_dump_to_destination()
         self.assertEqual(
             Path.exists(Path("destination/Folder 1/Folder 3/4 Codarea vorbirii.pptx")),
-            True
+            True,
         )
 
     def test_full_dump(self):
-       # empty the destination directory
-       rmtree('destination')
-       mkdir("destination")
-       DirSyncTestCase.dir_sync.full_dump_to_destination()
+        # empty the destination directory
+        rmtree("destination")
+        mkdir("destination")
+        DirSyncTestCase.dir_sync.full_dump_to_destination()
 
-       src_files = []
-       dest_files = []
-        
-       for (dirpath, dirname, fname) in walk('source'):
-           src_files.append(fname)
-            
-       for (dirpath, dirname, fname) in walk('destination'):
-           dest_files.append(fname)
-            
-       self.assertEqual(src_files == dest_files, True)
+        src_files = []
+        dest_files = []
+
+        for dirpath, dirname, fname in walk("source"):
+            src_files.append(fname)
+
+        for dirpath, dirname, fname in walk("destination"):
+            dest_files.append(fname)
+
+        self.assertEqual(src_files == dest_files, True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
