@@ -1,7 +1,7 @@
 import unittest
 from os import mkdir, walk
 from pathlib import Path
-from dir_sync import DirSync, setup_logging, validate_log_path
+from src.dir_sync import DirSync, setup_logging, validate_log_path
 from shutil import copytree, rmtree
 
 """
@@ -108,7 +108,10 @@ class DirSyncTestCase(unittest.TestCase):
 
     # 3rd SYNC phase
     def test_handle_duplicates(self):
+        # ensure the proper folder exists
+        DirSyncTestCase.dir_sync.mirror_source_dir()
         # remove the extra duplicate on destination if any
+        # rename non-extra copy
         DirSyncTestCase.dir_sync.handle_duplicates()
 
         src_file_duplicates = []
@@ -163,21 +166,21 @@ class DirSyncTestCase(unittest.TestCase):
         )
 
     def test_full_dump(self):
-        # empty the destination directory
-        rmtree('destination')
-        mkdir("destination")
-        DirSyncTestCase.dir_sync.full_dump_to_destination()
+       # empty the destination directory
+       rmtree('destination')
+       mkdir("destination")
+       DirSyncTestCase.dir_sync.full_dump_to_destination()
 
-        src_files = []
-        dest_files = []
-
-        for (dirpath, dirname, fname) in walk('source'):
-            src_files.append(fname)
-
-        for (dirpath, dirname, fname) in walk('destination'):
-            dest_files.append(fname)
-
-        self.assertEqual(src_files == dest_files, True)
+       src_files = []
+       dest_files = []
+        
+       for (dirpath, dirname, fname) in walk('source'):
+           src_files.append(fname)
+            
+       for (dirpath, dirname, fname) in walk('destination'):
+           dest_files.append(fname)
+            
+       self.assertEqual(src_files == dest_files, True)
 
 
 if __name__ == '__main__':
