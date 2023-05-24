@@ -50,11 +50,13 @@ class DirSyncTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
 
-        rmtree("./source")
-        rmtree("./destination")
         # desynchronized test folders
-        copytree(Path("./test folders/source"), Path("./source"))
+        if Path.exists(Path("./destination")):
+            rmtree("./destination")
         copytree(Path("./test folders/destination"), Path("./destination"))
+
+        if not Path.exists(Path("./source")):
+            copytree(Path("./test folders/source"), Path("./source"))
 
         # setup log directory & file
         log_path = Path("logz").resolve()
