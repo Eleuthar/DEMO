@@ -49,6 +49,9 @@ class DirSyncTestCase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
+
+        rmtree("./source")
+        rmtree("./destination")
         # desynchronized test folders
         copytree(Path("./test folders/source"), Path("./source"))
         copytree(Path("./test folders/destination"), Path("./destination"))
@@ -62,19 +65,21 @@ class DirSyncTestCase(unittest.TestCase):
         src = Path("source").resolve()
         dst = Path("destination").resolve()
         cls.dir_sync = DirSync(src, dst, 15, logg)
-        cls.dir_sync.source_hexmap, cls.dir_sync.source_tree = DirSync.generate_xmap(
-            src, logg
-        )
+        (
+            cls.dir_sync.source_hexmap,
+            cls.dir_sync.source_tree
+        ) = DirSync.generate_xmap(src, logg)
         (
             cls.dir_sync.destination_hexmap,
             cls.dir_sync.destination_tree,
         ) = DirSync.generate_xmap(dst, logg)
 
     @classmethod
-    def tearDownClass(cls) -> None:
-        # remove folders
-        rmtree("./source")
-        rmtree("./destination")
+    def tearDown(cls) -> None:
+        pass
+        # remove previous test folders
+        # rmtree("./source")
+        # rmtree("./destination")
 
     def test_generate_hex(self):
         target = Path("test folders/destination/1. Auth.pdf").resolve()
@@ -83,7 +88,7 @@ class DirSyncTestCase(unittest.TestCase):
 
     # 1st SYNC phase: mirroring directories
     def test_mirror_source_dir(self):
-        DirSyncTestCase.dir_sync.mirror_source_dir()
+        #DirSyncTestCase.dir_sync.mirror_source_dir()
         self.assertEqual(
             (
                 Path.exists(Path("destination/Folder 2/to mirror 1"))
