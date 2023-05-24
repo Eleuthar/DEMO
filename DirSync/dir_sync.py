@@ -1,13 +1,11 @@
-r"""
+r"""    
     Usage: python dirSync.py -s|--source_path <source_path> -d|--destination_path <destination_path>
         -i|--interval <integer> -t <S||M||H||D> -l|--log <log_path>
 
     S = SECONDS, M = MINUTES, H = HOURS, D = DAYS
 
-    Example for synchronizing every 5 minutes with absolute path:
-    $ python dirSync.py -s "C:\Users\MrRobot\Documents\Homework"
-    -d "C:\Users\MrRobot\Downloads\Homework" -i 5 -t M
-    -l "C:\Program Files\DirSync\logs"
+    Example for synchronizing every 5 seconds:    
+    $ python dirSync.py -s "source" -d "destination" -i 5 -t s -l "logs"
 """
 
 import sys
