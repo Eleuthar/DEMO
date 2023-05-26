@@ -191,10 +191,10 @@ if __name__ == "__main__":
 
         game = TicTacToe()
         game.display_board()
+        
         # players take turns until there are 2 free squares left
         # get the victor status after each turn
         while len(game.free_squares) >= 0:
-
             board_no, tokn = game.user_move()
             game.update_tables(board_no, tokn)
             game.display_board()
