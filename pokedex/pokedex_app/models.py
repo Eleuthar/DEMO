@@ -20,7 +20,7 @@ class Pokemon(models.Model):
 
 class Move(models.Model):
     move_name = models.CharField(max_length=100)
-    pokemon = models.ForeignKey(Pokemon, on_delete=models.CASCADE)
+    pokemon = models.ForeignKey(Pokemon, on_delete=models.CASCADE, related_name="moves")
 
     class Meta:
         verbose_name_plural = 'Move'
