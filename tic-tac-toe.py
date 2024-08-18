@@ -2,12 +2,13 @@ from random import choice
 from copy import deepcopy
 from os import system
 from platform import platform
+from pdb import set_trace
 
 
 class TicTacToe:
-"""
-Play a game of TicTacToe with a competitive bot going for win moves or preventing your win.
-"""
+    """
+    Play a game of TicTacToe with a competitive bot going for win moves or preventing your win.
+    """
     # board game template
     new_board = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"]]
 
@@ -34,13 +35,6 @@ Play a game of TicTacToe with a competitive bot going for win moves or preventin
         self.player_winning_combo: list[str] = []
         self.comp_winning_combo: list[str] = []
 
-    def __del__(self):
-        """
-        Instance deconstructor
-        Triggered after every game, the message is visible on exiting the game
-        """
-        print("\n\nGOOD BYE! It's been a pleasure.\n\n")
-
     def display_board(self):
         """
         Clear the screen and draw the game board in place with updated move
@@ -52,7 +46,7 @@ Play a game of TicTacToe with a competitive bot going for win moves or preventin
             system('clear')
 
         for z in range(3):
-            print(f"+{7*'-'}+{7*'-'}+{7*'-'}")
+            print(f"+{7*'-'}+{7*'-'}+{7*'-'}+")
             print(f"|{7*' '}|{7*' '}|{7*' '}|")
             for q in range(3):
                 if q == 2:
@@ -60,39 +54,33 @@ Play a game of TicTacToe with a competitive bot going for win moves or preventin
                 else:
                     print("|  ", self.board[z][q], "  ", end="")
             print(f"|{7*' '}|{7*' '}|{7*' '}|")
-        print(f"+{7*'-'}+{7*'-'}+{7*'-'}")
+        print(f"+{7*'-'}+{7*'-'}+{7*'-'}+")
 
     def user_move(self):
-    """
-    Ask the player their move & validate input
-    Update the board & combo map
-    """
-        try:
-            # keep asking if user choice is not valid
+        """
+        Ask the player their move & validate input
+        Update the board & combo map
+        """
+        # keep asking if user choice is not valid
+        while True:
             o = input("Enter your move!\n")
+
             if not o.isnumeric():
-                raise ValueError
-
+                print("This is not a number, try again!\n")
             # keep asking if user choice is not valid
-            elif 9 < int(o) < 1:
+            elif 9 < int(o) or int(o) < 1:
                 print("That is not in the range of 1-9, try again!\n")
-                self.user_move()
-
             # restart main function if user choice square is already taken
             elif o not in self.free_squares:
                 print("Spot taken! Pick another!\n")
-                self.user_move()
             else:
-                return o, "O"
+                return [o, "O"]
 
-        except ValueError:
-            print("This is not a number, try again!\n")
-            self.user_move()
 
     def bot_move(self):
-    """
-    Draw the computer's move and update the board
-    """
+        """
+        Draw the computer's move and update the board
+        """
         # go for the win!
         if len(self.comp_winning_combo) != 0:
             key = self.comp_winning_combo[0]
@@ -157,9 +145,9 @@ Play a game of TicTacToe with a competitive bot going for win moves or preventin
                     self.comp_winning_combo.append(combo_key)
 
     def victory(self):
-    """
-    Analyze the board status and check if someone has won the game
-    """
+        """
+        Analyze the board status and check if someone has won the game
+        """
         for win_move in self.combo_map.values():
             for tag_owner, token in TicTacToe.tokens.items():
                 if win_move.count(token) == 3:
@@ -168,34 +156,35 @@ Play a game of TicTacToe with a competitive bot going for win moves or preventin
         else:
             return False
 
-    @staticmethod
-    def restart():
-    """
-    Ask the player for restart
-    """
-        new_game = input("Play a new game?\nY or N: ")
-        if new_game.upper() == "Y":
-            return True
-        elif new_game.upper() == "N":
-            return False
-        else:
-            print("Looks like you made a typo :)\n")
-            TicTacToe.restart()
+    def restart(self):
+        """
+        Ask the player for restart
+        """
+        opt = None
+        while True:
+            new_game = input("Play a new game?\nY or N: ").upper()
+            if new_game == "Y":
+                opt = True
+                break
+            elif new_game == "N":
+                opt = False
+                break
+            else:
+                print("Looks like you made a typo :)\n")
+        return opt
 
             
 # ~~~~~~~~~~~~~~~  PLAY GAME ~~~~~~~~~~~~~~~ #
 
 if __name__ == "__main__":
-
+    
     while True:
-
         game = TicTacToe()
-        game.display_board()
-        
+        game.display_board()     
         # players take turns until there are 2 free squares left
         # get the victor status after each turn
-        while len(game.free_squares) >= 0:
-            board_no, tokn = game.user_move()
+        while len(game.free_squares) > 0:
+            [board_no, tokn] = game.user_move()
             game.update_tables(board_no, tokn)
             game.display_board()
 
@@ -213,7 +202,7 @@ if __name__ == "__main__":
             if game.victory():
                 break
 
-        if not TicTacToe.restart():
+        if not game.restart():
+            print("\n\nGOOD BYE! It's been a pleasure.\n\n")
+            break
             raise SystemExit
-        else:
-            del game
