@@ -76,7 +76,7 @@ if __name__ == '__main__':
         # export to file
         with open(export_filename, 'w') as exported:
             num_guest_output = f'Number of guests: {number_of_guests}'
-            min_room_output = f'Cheapest room "{min_room}" for {min_price}'
+            min_room_output = f'Cheapest room "{min_room}" for {min_price:.2f}}'
             for line in [num_guest_output, min_room_output]:
                 print(line)
                 exported.write(f'{line}\n')
